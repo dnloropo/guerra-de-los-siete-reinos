@@ -2749,6 +2749,7 @@ function buildWorld3D(){
     resizeObs:null, active:false, waterTextures,
     caveP3:{x:caveX, z:caveZ}, trollLuisP3:{x:trollLuisX, z:trollLuisZ},
     camOrbit:0, // player-drag-controlled horizontal angle around the player, third-person orbit
+    camZoom:1, // mouse-wheel-controlled distance multiplier, 1 = default third-person distance
     velY:0, grounded:true, ridingPlatform:null, parkourPlatforms, chest, chestP3:{x:lastPlat.x, y:lastPlat.y, z:lastPlat.z},
     castleColliders
   };
@@ -2789,6 +2790,17 @@ function setupCameraDrag(container){
   };
   container.addEventListener("pointerup", endDrag);
   container.addEventListener("pointercancel", endDrag);
+
+  // mouse wheel zoom: scroll to pull the third-person camera closer to (or
+  // further from) the player, clamped so it can't clip through them or
+  // drift absurdly far out
+  const ZOOM_SENSITIVITY = 0.0012;
+  const ZOOM_MIN = 0.35, ZOOM_MAX = 1.3;
+  container.addEventListener("wheel", e=>{
+    if(!W3D) return;
+    e.preventDefault();
+    W3D.camZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, W3D.camZoom + e.deltaY*ZOOM_SENSITIVITY));
+  }, {passive:false});
 }
 
 function spawnPoint3D(){
@@ -3019,7 +3031,7 @@ function updateWorld3D(dt){
   // camera follow: third-person, at a fixed distance/height behind the
   // player, but orbiting around them at whatever angle the player has
   // dragged it to (camOrbit, 0 = the original "behind, looking north" view)
-  const CAM_DIST = 17, CAM_HEIGHT = 13;
+  const CAM_DIST = 17*W3D.camZoom, CAM_HEIGHT = 13*W3D.camZoom;
   const desired = new THREE.Vector3(
     W3D.player.position.x + Math.sin(W3D.camOrbit)*CAM_DIST,
     W3D.player.position.y + CAM_HEIGHT, // tracks the player's own height too, so the parkour climb stays framed
