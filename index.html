@@ -128,6 +128,32 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
 #dpad .d-down{grid-column:2; grid-row:3;}
 @media (min-width:821px) and (hover:hover){ #dpad{display:none;} }
 
+/* ---------- DIALOGUE (pre-battle scene / epilogue narration) ---------- */
+#view-dialogue{align-items:center; justify-content:center; cursor:pointer;}
+#dlg-wrap{display:flex; flex-direction:column; align-items:center; gap:16px; width:100%; max-width:440px;}
+#dlg-portrait{
+  width:min(176px,44vw); height:min(176px,44vw); border-radius:50%; overflow:hidden; flex:none;
+  border:3px solid var(--line); box-shadow:0 10px 26px rgba(0,0,0,.3); background:var(--panel);
+  display:flex; align-items:center; justify-content:center; transition:background .2s ease;
+}
+#dlg-portrait svg{width:102%; height:102%; display:block;}
+#dlg-box{
+  width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:16px 18px; box-shadow:0 8px 20px rgba(0,0,0,.18); text-align:left;
+}
+#dlg-box.narrator{text-align:center;}
+#dlg-name{font-family:var(--font-display); font-size:14px; color:var(--accent); margin-bottom:6px; min-height:1em;}
+#dlg-box.narrator #dlg-name{display:none;}
+#dlg-text{font-size:15px; line-height:1.55; min-height:48px;}
+#dlg-box.narrator #dlg-text{font-style:italic; color:var(--ink-dim);}
+#dlg-next{
+  text-align:right; font-family:var(--font-mono); font-size:11px; color:var(--ink-dim);
+  margin-top:10px; animation:dlgBlink 1.4s ease-in-out infinite;
+}
+#dlg-box.narrator #dlg-next{text-align:center;}
+@keyframes dlgBlink{ 0%,100%{opacity:.45;} 50%{opacity:1;} }
+@media (prefers-reduced-motion:reduce){ #dlg-next{animation:none!important;} }
+
 /* ---------- BATTLE ---------- */
 #view-battle{min-height:0;}
 #battle-arena{
@@ -370,6 +396,18 @@ footer.hint{
     </div>
   </section>
 
+  <!-- DIALOGUE (pre-battle scene / epilogue narration) -->
+  <section id="view-dialogue" class="view">
+    <div id="dlg-wrap">
+      <div id="dlg-portrait"></div>
+      <div id="dlg-box">
+        <div id="dlg-name"></div>
+        <div id="dlg-text"></div>
+        <div id="dlg-next">Toca para continuar ▸</div>
+      </div>
+    </div>
+  </section>
+
   <!-- BATTLE -->
   <section id="view-battle" class="view">
     <div id="hud"></div>
@@ -546,6 +584,48 @@ const CLANS = {
     hp:95, atk:14, def:7 }
 };
 const CLAN_ORDER = ["turing","tesla","gosling","vanrossum","nakamoto","ubuntu"];
+
+/* short pre-battle exchanges, one per clan (plus the optional cave troll),
+   shown as a tap-to-advance scene right before entering combat with them;
+   "epilogue" is a separate narration sequence played once, right after the
+   sixth and final realm is won, before the victory summary screen */
+const DIALOGUES = {
+  turing:[
+    {who:"enemy", text:"Ya calculé cada paso que darás, forjador. Tu martillo es predecible; mi cifra, no."},
+    {who:"hero", text:"Las máquinas que lees fueron hechas por manos como las mías. Veamos si también sabes leer un golpe."}
+  ],
+  tesla:[
+    {who:"enemy", text:"¡Ja! ¿Vienes a apagar la tormenta? Cada chispa que ves ya pasó por tres ideas que descartaste."},
+    {who:"hero", text:"Yo forjo con el fuego que tú apenas te atreves a soltar. Vamos, suelta el rayo."}
+  ],
+  gosling:[
+    {who:"enemy", text:"Siéntate, forastero. Hay café para los dos... después de que pierdas, claro."},
+    {who:"hero", text:"Gracias, pero prefiero ganarme la taza antes de bebérmela."}
+  ],
+  vanrossum:[
+    {who:"enemy", text:"Shhh. No hace falta prisa. El veneno de la selva siempre llega, tarde o temprano."},
+    {who:"hero", text:"Entonces que sea temprano. No tengo toda la guerra para esperar."}
+  ],
+  nakamoto:[
+    {who:"enemy", text:"Esta bóveda ha resistido a mil pretendientes. ¿Qué te hace pensar que tú eres el elegido?"},
+    {who:"hero", text:"No vengo a abrir tu bóveda, Angelo. Vengo a que dejes de esconderte detrás de ella."}
+  ],
+  ubuntu:[
+    {who:"enemy", text:"Yo no peleo solo, forjador. Cada aldea que protegí vive en este golpe."},
+    {who:"hero", text:"Entonces que tu gente vea que también se puede construir una unión sin miedo."}
+  ],
+  cueva:[
+    {who:"enemy", text:"Un gruñido retumba entre las rocas. Nadie cruza sin pagar con sangre... o con huesos."},
+    {who:"hero", text:"No busco pelea con lo que solo defiende su hogar. Pero tampoco voy a retroceder."}
+  ],
+  epilogue:[
+    {who:"narrator", text:"Uno a uno, los seis clanes bajan las armas. Donde hubo fronteras cerradas, ahora hay caminos abiertos entre ellas."},
+    {who:"hero", text:"No vine a borrar lo que cada clan construyó. Vine a demostrar que no hacía falta pelear para compartirlo."},
+    {who:"narrator", text:"Turing cifra los nuevos pactos. Tesla ilumina los caminos entre reinos. El Capitán Java sirve café en la mesa donde antes solo había tratados rotos."},
+    {who:"narrator", text:"Van Rossum, Nakamoto y Ubuntu envían a sus mejores guardianes — ya no como rivales, sino como guardia de honor del Forjador."},
+    {who:"hero", text:"Dicen que el código del mundo está roto desde siempre. Hoy, por primera vez, compila entero."}
+  ]
+};
 
 /* original, geometric/flat-style champion portraits for each rival clan,
    used in the battle screen instead of the generic sword emoji. each is a
@@ -2379,7 +2459,53 @@ function updateMapTip(html){
 
 function enterTerritory(key){
   if(S.battle) return;
-  startBattle(key);
+  startDialogue(key, ()=>startBattle(key), "Toca para comenzar el combate ▸");
+}
+
+/* ============== PRE-BATTLE / EPILOGUE DIALOGUE ============== */
+let dlgQueue = [], dlgIndex = 0, dlgOnDone = null, dlgKey = null, dlgFinalLabel = "Toca para continuar ▸";
+
+function startDialogue(key, onDone, finalLabel){
+  const lines = DIALOGUES[key];
+  if(!lines || !lines.length){ onDone(); return; }
+  dlgKey = key; dlgQueue = lines; dlgIndex = 0; dlgOnDone = onDone;
+  dlgFinalLabel = finalLabel || "Toca para continuar ▸";
+  renderDialogueLine();
+  setView("dialogue");
+}
+function renderDialogueLine(){
+  const line = dlgQueue[dlgIndex];
+  const c = CLANS[dlgKey];
+  const portrait = $("dlg-portrait"), box = $("dlg-box");
+  box.classList.toggle("narrator", line.who==="narrator");
+  if(line.who==="hero"){
+    portrait.style.display = "flex";
+    portrait.innerHTML = HERO_PORTRAIT;
+    portrait.style.background = "color-mix(in srgb, #c45a2c 42%, var(--bg2))";
+    $("dlg-name").textContent = "Jesús David";
+  } else if(line.who==="enemy" && c){
+    portrait.style.display = "flex";
+    portrait.innerHTML = CHAMPION_PORTRAITS[dlgKey] || "";
+    portrait.style.background = `color-mix(in srgb, ${c.color} 50%, var(--bg2))`;
+    $("dlg-name").textContent = c.champ;
+  } else {
+    portrait.style.display = "none";
+    portrait.innerHTML = "";
+    $("dlg-name").textContent = "";
+  }
+  $("dlg-text").textContent = line.text;
+  $("dlg-next").textContent = (dlgIndex < dlgQueue.length-1) ? "Toca para continuar ▸" : dlgFinalLabel;
+}
+function advanceDialogue(){
+  if(S.screen !== "dialogue") return;
+  dlgIndex++;
+  if(dlgIndex >= dlgQueue.length){
+    const done = dlgOnDone;
+    dlgOnDone = null;
+    if(done) done();
+    return;
+  }
+  renderDialogueLine();
 }
 
 // S.conquered also holds "cueva" once the cave troll is beaten, but that's
@@ -2789,7 +2915,8 @@ function winBattle(){
   $("enemy-sprite").classList.add("collapse");
   setTimeout(()=>{
     if(realmsConqueredCount() === CLAN_ORDER.length){
-      showVictory();
+      S.battle = null;
+      startDialogue("epilogue", showVictory, "Toca para continuar ▸");
     } else {
       pendingKnockback = b.clanKey;
       S.battle = null;
@@ -2828,6 +2955,7 @@ function openItemPopover(){ $("item-popover").classList.add("open"); }
 function closeItemPopover(){ $("item-popover").classList.remove("open"); }
 
 /* ============== EVENTS ============== */
+$("view-dialogue").addEventListener("click", advanceDialogue);
 $("btn-start").addEventListener("click", ()=> setView("map"));
 $("btn-retry").addEventListener("click", ()=>{
   const keepConquered = S.conquered.slice();
@@ -2873,6 +3001,10 @@ function boot(initial){
   if(initial && initial.hero){
     S = initial;
   }
+  // "dialogue" is a transient scene (its line queue isn't part of saved
+  // state), so a snapshot/reload mid-scene falls back to the map instead
+  // of showing an empty dialogue box
+  if(S.screen === "dialogue") S.screen = "map";
   setView(S.screen || "title");
 }
 try{
