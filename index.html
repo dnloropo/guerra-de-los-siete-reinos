@@ -132,6 +132,40 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
   border:1px solid var(--line);
 }
 #minimap-btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+#help-btn{
+  position:absolute; left:62px; top:14px; z-index:6;
+  width:40px; height:40px; border-radius:10px; font-size:17px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--bg2) 82%, transparent); backdrop-filter:blur(2px);
+  border:1px solid var(--line);
+}
+#help-btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+#help-modal{
+  position:fixed; inset:0; z-index:40;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  background:color-mix(in srgb, #000 55%, transparent);
+  opacity:0; pointer-events:none; transition:opacity .18s ease;
+}
+#help-modal.open{opacity:1; pointer-events:auto;}
+#help-modal .help-panel{
+  width:min(420px,100%); max-height:min(80vh,560px); overflow-y:auto;
+  background:var(--bg2); border:1px solid var(--line); border-radius:12px;
+  padding:20px 22px 18px; transform:translateY(8px) scale(.97);
+  transition:transform .18s ease; box-shadow:0 12px 40px color-mix(in srgb, #000 30%, transparent);
+}
+#help-modal.open .help-panel{transform:translateY(0) scale(1);}
+#help-modal h3{font-size:19px; margin-bottom:4px;}
+#help-modal .help-sub{color:var(--ink-dim); font-size:12.5px; margin-bottom:14px;}
+.help-row{display:flex; align-items:center; gap:12px; padding:8px 0; border-top:1px solid var(--line);}
+.help-row:first-of-type{border-top:none;}
+.help-key{
+  font-family:var(--font-mono); font-size:11.5px; font-weight:600; color:var(--ink);
+  background:var(--panel); border:1px solid var(--line); border-radius:5px;
+  padding:4px 8px; flex:none; min-width:66px; text-align:center;
+}
+.help-desc{font-size:13px; color:var(--ink-dim); line-height:1.4;}
+.help-desc b{color:var(--ink); font-weight:600;}
+#help-close{width:100%; margin-top:14px;}
 #minimap-overlay{
   position:absolute; left:14px; top:64px; z-index:6;
   width:216px; background:color-mix(in srgb, var(--bg2) 92%, transparent);
@@ -469,6 +503,7 @@ footer.hint{
     <div id="map-wrap">
       <div id="world3d"></div>
       <button id="minimap-btn" aria-label="Mostrar mapa de los reinos" title="Mapa de los reinos">🗺️</button>
+      <button id="help-btn" aria-label="Cómo jugar" title="Cómo jugar">❓</button>
       <div id="minimap-overlay">
         <h4>Mapa de los reinos</h4>
         <svg id="minimap-svg" viewBox="0 0 300 225" preserveAspectRatio="xMidYMid meet"></svg>
@@ -507,6 +542,20 @@ footer.hint{
       </div>
     </div>
   </section>
+
+  <div id="help-modal">
+    <div class="help-panel">
+      <h3>Cómo jugar</h3>
+      <p class="help-sub">Controles del Mapa de los Reinos</p>
+      <div class="help-row"><span class="help-key">WASD / ←↑↓→</span><span class="help-desc">Caminar por el mapa. También puedes usar el <b>d-pad</b> en pantalla.</span></div>
+      <div class="help-row"><span class="help-key">Espacio</span><span class="help-desc">Saltar (o el botón <b>⤒</b> del d-pad). Útil para el parkour hacia el cofre.</span></div>
+      <div class="help-row"><span class="help-key">Arrastrar</span><span class="help-desc">Clic/toca y arrastra sobre el mapa para <b>orbitar</b> la cámara alrededor del héroe.</span></div>
+      <div class="help-row"><span class="help-key">Rueda del mouse</span><span class="help-desc">Acerca o aleja la cámara (<b>zoom</b>).</span></div>
+      <div class="help-row"><span class="help-key">🗺️ / 📜</span><span class="help-desc">Abren el <b>mapa de los reinos</b> y la lista de <b>misiones</b>.</span></div>
+      <div class="help-row"><span class="help-key">Entrar a un territorio</span><span class="help-desc">Acércate al campeón de un clan para iniciar el diálogo y el combate por turnos.</span></div>
+      <button id="help-close" class="primary-btn">Entendido</button>
+    </div>
+  </div>
 
   <!-- DIALOGUE (pre-battle scene / epilogue narration) -->
   <section id="view-dialogue" class="view">
@@ -1071,6 +1120,13 @@ function toggleQuests(){
   $("quests-overlay").classList.toggle("open", questsOpen);
   if(questsOpen) renderQuestsList();
 }
+
+/* ============== HELP MODAL (controls reference) ============== */
+function setHelpOpen(open){
+  $("help-btn").classList.toggle("active", open);
+  $("help-modal").classList.toggle("open", open);
+}
+function toggleHelp(){ setHelpOpen(!$("help-modal").classList.contains("open")); }
 function updateCompass(){
   const needle = $("compass-needle");
   if(!needle || !W3D) return;
@@ -4982,6 +5038,12 @@ document.querySelectorAll("#dpad button[data-dir]").forEach(btn=>{
 
 $("minimap-btn").addEventListener("click", toggleMinimap);
 $("quests-btn").addEventListener("click", toggleQuests);
+$("help-btn").addEventListener("click", toggleHelp);
+$("help-close").addEventListener("click", ()=>setHelpOpen(false));
+$("help-modal").addEventListener("click", e=>{ if(e.target.id === "help-modal") setHelpOpen(false); });
+document.addEventListener("keydown", e=>{
+  if(e.key === "Escape" && $("help-modal").classList.contains("open")) setHelpOpen(false);
+});
 $("chest-btn").addEventListener("click", openChest);
 
 /* ============== HOT RELOAD / SNAPSHOT ============== */
