@@ -660,14 +660,14 @@ const CLANS = {
   // not one of the six rival realms — a standalone optional encounter living
   // in the landmark cave near Clan Turing, not counted toward the "reinos
   // conquistados" total or the CLAN_ORDER win condition
-  cueva:{ name:"Cueva HSE", champ:"Troll Alejandra", color:"#4a4336", colorDark:"#6e6558", icon:"👹",
-    desc:"Musgo y piedra viva. Un troll guarda la cueva y golpea con la fuerza de la montaña misma.",
-    special:{name:"Golpe Sísmico", cost:20, desc:"Daño alto + probabilidad de aturdir", kind:"stun_dmg"},
+  cueva:{ name:"Cueva HSE", champ:"Curandera Alejandra", color:"#4a4336", colorDark:"#6e6558", icon:"🧙‍♀️",
+    desc:"Hierbas, cantos y humo de copal. Una curandera guarda la cueva y domina la magia ancestral de la montaña.",
+    special:{name:"Brebaje Maldito", cost:20, desc:"Daño alto + probabilidad de aturdir", kind:"stun_dmg"},
     hp:95, atk:14, def:7 }
 };
 const CLAN_ORDER = ["turing","tesla","gosling","vanrossum","nakamoto","ubuntu"];
 
-/* short pre-battle exchanges, one per clan (plus the optional cave troll),
+/* short pre-battle exchanges, one per clan (plus the optional cave healer),
    shown as a tap-to-advance scene right before entering combat with them;
    "epilogue" is a separate narration sequence played once, right after the
    sixth and final realm is won, before the victory summary screen */
@@ -700,8 +700,8 @@ const DIALOGUES = {
     {who:"hero", text:"Entonces que tu gente vea que también se puede construir una unión sin miedo."}
   ],
   cueva:[
-    {who:"enemy", text:"Un gruñido retumba entre las rocas. Nadie cruza sin pagar con sangre... o con huesos."},
-    {who:"hero", text:"No busco pelea con lo que solo defiende su hogar. Pero tampoco voy a retroceder."}
+    {who:"enemy", text:"Entre estas rocas cultivo lo que cura y lo que enferma. Nadie cruza sin probar un poco de ambos."},
+    {who:"hero", text:"No busco pelea con quien solo defiende su hogar. Pero tampoco voy a retroceder."}
   ],
   epilogue:[
     {who:"narrator", text:"Uno a uno, los seis clanes bajan las armas. Donde hubo fronteras cerradas, ahora hay caminos abiertos entre ellas."},
@@ -806,19 +806,16 @@ const CHAMPION_PORTRAITS = {
     <g transform="translate(18 72) rotate(-6)"><rect x="-2" y="-28" width="4" height="40" rx="2" fill="#7a4a28"/><circle cx="0" cy="-28" r="5" fill="#d96b3a"/></g>
   </svg>`,
   cueva: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <path d="M50 14 C24 14 14 40 14 62 L14 92 L86 92 L86 62 C86 40 76 14 50 14 Z" fill="#5f6b4a"/>
-    <path d="M50 14 C30 14 22 40 22 62 L22 86 L78 86 L78 62 C78 40 70 14 50 14 Z" fill="#434f32"/>
-    <g fill="#5a5142"><circle cx="18" cy="38" r="8"/><circle cx="82" cy="38" r="8"/></g>
-    <ellipse cx="50" cy="56" rx="19" ry="20" fill="#7c8a5c"/>
-    <path d="M28 44 Q50 28 72 44 Q70 52 58 48 Q50 40 42 48 Q30 52 28 44 Z" fill="#3a4428"/>
-    <rect x="37" y="52" width="10" height="7" rx="2" fill="#1a200e" style="filter:drop-shadow(0 0 3px #9fdb5a)"/>
-    <rect x="53" y="52" width="10" height="7" rx="2" fill="#1a200e" style="filter:drop-shadow(0 0 3px #9fdb5a)"/>
-    <path d="M34 68 Q50 80 66 68 Q62 76 50 78 Q38 76 34 68 Z" fill="#1a200e"/>
-    <path d="M40 70 L36 82 L44 72 Z" fill="#e8e2cf"/>
-    <path d="M60 70 L64 82 L56 72 Z" fill="#e8e2cf"/>
-    <ellipse cx="24" cy="68" rx="7" ry="4.5" fill="#6b8f4a" opacity=".85"/>
-    <ellipse cx="76" cy="68" rx="7" ry="4.5" fill="#6b8f4a" opacity=".85"/>
-    <g transform="translate(84 60) rotate(22)"><rect x="-4" y="-4" width="8" height="32" rx="3" fill="#4a3b26"/><ellipse cx="0" cy="-10" rx="10" ry="8" fill="#5c4a30"/><circle cx="-4" cy="-13" r="2" fill="#3a2e1c"/><circle cx="3" cy="-8" r="2" fill="#3a2e1c"/></g>
+    <path d="M50 14 C28 14 18 36 18 58 L18 92 L82 92 L82 58 C82 36 72 14 50 14 Z" fill="#5a4a63"/>
+    <path d="M50 14 C32 14 24 36 24 58 L24 86 L76 86 L76 58 C76 36 68 14 50 14 Z" fill="#3e3348"/>
+    <path d="M26 42 Q50 16 74 42 Q68 30 50 24 Q32 30 26 42 Z" fill="#2c2436"/>
+    <ellipse cx="50" cy="52" rx="15" ry="16" fill="#c98f5e"/>
+    <rect x="41" y="50" width="7" height="6" rx="2" fill="#2f5a3a" style="filter:drop-shadow(0 0 3px #7fd98a)"/>
+    <rect x="52" y="50" width="7" height="6" rx="2" fill="#2f5a3a" style="filter:drop-shadow(0 0 3px #7fd98a)"/>
+    <path d="M42 64 Q50 69 58 64" stroke="#2c2436" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <g fill="#d9c27a"><circle cx="38" cy="70" r="2"/><circle cx="46" cy="74" r="2"/><circle cx="54" cy="74" r="2"/><circle cx="62" cy="70" r="2"/></g>
+    <g transform="translate(82 58) rotate(14)"><rect x="-2.2" y="-4" width="4.4" height="34" rx="2" fill="#6b4a2e"/><circle cx="0" cy="-10" r="7" fill="#7c9e55"/><circle cx="-4" cy="-14" r="3" fill="#8fb565"/><circle cx="4" cy="-15" r="3" fill="#8fb565"/><circle cx="0" cy="-18" r="3" fill="#9fc877"/></g>
+    <path d="M16 74 Q14 84 22 88 L24 80 Z" fill="#6b4a2e"/>
   </svg>`
 };
 
@@ -927,7 +924,7 @@ function renderMinimapStatic(){
   const home = minimapXY(W3D.home3.x, W3D.home3.z);
   parts += `<circle cx="${home.x}" cy="${home.y}" r="7" fill="var(--warn)" stroke="var(--bg2)" stroke-width="1.5"></circle>`;
   parts += `<text class="minimap-label" x="${home.x}" y="${home.y+14}">Ritchie</text>`;
-  // cave troll landmark
+  // cave healer landmark
   if(W3D.caveP3){
     const cave = minimapXY(W3D.caveP3.x, W3D.caveP3.z);
     const caveWon = S.conquered.includes("cueva");
@@ -981,7 +978,7 @@ function updateCompass(){
 const SCALE3D = 1/12;
 const WORLD_W3D = WORLD_SIZE.w*SCALE3D, WORLD_H3D = WORLD_SIZE.h*SCALE3D;
 const ZONE_RADIUS_3D = ZONE_RADIUS*SCALE3D, TRIGGER_RADIUS_3D = TRIGGER_RADIUS*SCALE3D, SAFE_RADIUS_3D = SAFE_RADIUS*SCALE3D;
-// the cave troll's encounter radius is its own, smaller than a castle's —
+// the cave healer's encounter radius is its own, smaller than a castle's —
 // the cave itself is a much smaller landmark than a castle's walled territory
 const CAVE_ZONE_RADIUS_3D = 14, CAVE_TRIGGER_RADIUS_3D = 10;
 function toWorld3D(pos){ return {x:pos.x*SCALE3D, z:pos.y*SCALE3D}; }
@@ -2460,7 +2457,7 @@ function buildWorld3D(){
   const turing3 = castles.turing.p3;
   const caveX = turing3.x + 24, caveZ = turing3.z + 26;
   makeCave(scene, caveX, caveZ, Math.atan2(caveZ-turing3.z, caveX-turing3.x));
-  const caveLabel = makeLabelSprite("👹 CUEVA HSE", "#ffffff");
+  const caveLabel = makeLabelSprite("🧙‍♀️ CUEVA HSE", "#ffffff");
   caveLabel.position.set(caveX, 12.5, caveZ);
   scene.add(caveLabel);
   upgradeNatureToRealModels(scene, randomSpot, natureGroup, boulderGroup);
@@ -2572,7 +2569,7 @@ function setupCameraDrag(container){
 
 function spawnPoint3D(){
   const home3 = toWorld3D(WORLD_POS.ritchie);
-  // the cave troll isn't in WORLD_POS (it's not a realm), so it needs its
+  // the cave healer isn't in WORLD_POS (it's not a realm), so it needs its
   // own branch here, using the cave's actual world position once built
   if(pendingKnockback === "cueva" && W3D && W3D.caveP3){
     const zp = W3D.caveP3;
@@ -2831,7 +2828,7 @@ function updateWorld3D(dt){
     const d = Math.hypot(W3D.player.position.x-p3.x, W3D.player.position.z-p3.z);
     if(d<nearestDist){ nearestDist=d; nearest=key; }
   });
-  // the cave troll is a separate, smaller-radius optional encounter — not
+  // the cave healer is a separate, smaller-radius optional encounter — not
   // one of the six realms, so it's checked on its own rather than folded
   // into the "nearest realm" search above
   const caveDist = W3D.caveP3
@@ -2856,7 +2853,7 @@ function updateWorld3D(dt){
   } else if(nearCave){
     const c = CLANS.cueva, won = S.conquered.includes("cueva");
     updateMapTip(won
-      ? `<b>${c.name} — despejada.</b> El ${c.champ} ya no ronda la cueva.`
+      ? `<b>${c.name} — despejada.</b> La ${c.champ} ya no ronda la cueva.`
       : `<b>${c.name}</b> · Enemigo: <b>${c.champ}</b> — ${c.desc}`);
   } else if(nearest && nearestDist < ZONE_RADIUS_3D+5){
     const c = CLANS[nearest], won = S.conquered.includes(nearest);
@@ -2965,7 +2962,7 @@ function advanceDialogue(){
   renderDialogueLine();
 }
 
-// S.conquered also holds "cueva" once the cave troll is beaten, but that's
+// S.conquered also holds "cueva" once the cave healer is beaten, but that's
 // not one of the six realms — this counts only real realm wins, for the
 // win condition, difficulty scaling, and the "X / 6" summary displays
 function realmsConqueredCount(){
@@ -2984,7 +2981,7 @@ function startBattle(key){
       statuses:[]
     },
     log:[key==="cueva"
-      ? `Entras a la ${c.name}. Un ${c.champ} gruñe desde la oscuridad y te bloquea el paso.`
+      ? `Entras a la ${c.name}. Una ${c.champ} murmura un conjuro desde la oscuridad y te bloquea el paso.`
       : `Entras al territorio de ${c.name}. ${c.champ} bloquea tu paso.`],
     turn:"player",
     locked:false
@@ -3380,7 +3377,7 @@ function winBattle(){
   const b = S.battle, c = CLANS[b.clanKey];
   b.over = true; b.locked = true;
   log(b.clanKey==="cueva"
-    ? `¡Has derrotado al ${c.champ}! La cueva vuelve a estar tranquila.`
+    ? `¡Has derrotado a la ${c.champ}! La cueva vuelve a estar tranquila.`
     : `¡Has derrotado a ${c.champ}! El territorio de ${c.name} se alía contigo.`);
   if(!S.conquered.includes(b.clanKey)) S.conquered.push(b.clanKey);
   S.hero.level++;
