@@ -999,6 +999,15 @@ window.addEventListener("keydown", e=>{
   if(e.key===" " && S.screen==="map") e.preventDefault(); // space = jump on the overworld, not page-scroll
 });
 window.addEventListener("keyup", e=>{ keysDown[e.key.toLowerCase()]=false; });
+// if the window/tab loses focus while a movement key is held — which
+// happens easily while dragging the camera with the mouse, since the OS
+// can steal focus mid-drag — the matching keyup never arrives and that key
+// is stuck "down" forever, walking the player in that direction on its own
+// until some other key happens to be pressed and released cleanly. Clearing
+// everything on blur/hide is the standard fix for this class of bug
+function releaseAllKeys(){ keysDown = {}; }
+window.addEventListener("blur", releaseAllKeys);
+document.addEventListener("visibilitychange", ()=>{ if(document.hidden) releaseAllKeys(); });
 
 function cssVarRaw(name){
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888888";
