@@ -266,7 +266,11 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
   padding:4px 10px 10px; position:relative; border-radius:8px; overflow:hidden;
 }
 #battle-3d-canvas{position:absolute; inset:0; width:100%; height:100%; display:block; z-index:0;}
-.stage-fighter{display:flex; flex-direction:column; align-items:center; gap:4px; position:relative; z-index:1;}
+/* the fighters are now real 3D models standing in the coliseum behind this
+   canvas, so the old flat 2D portraits (and their drop-shadow ellipses)
+   are hidden — every bit of JS that still animates them (shakeFlash,
+   idle/collapse classes) keeps running harmlessly on invisible elements */
+.stage-fighter{display:none;}
 .stage-shadow{width:70%; height:10px; border-radius:50%; background:rgba(0,0,0,.22); filter:blur(1px);}
 .stage-sprite{
   width:min(149px, 32vw); height:min(149px, 32vw); filter:drop-shadow(0 6px 10px rgba(0,0,0,.28));
@@ -945,8 +949,9 @@ function setView(name){
     pauseWorld3D();
   }
   if(name==="battle"){
-    renderBattle(true);
     ensureBattleArena3D();
+    if(S.battle) swapBattleEnemyModel3D(S.battle.clanKey);
+    renderBattle(true);
   } else {
     pauseBattleArena3D();
   }
@@ -3313,8 +3318,9 @@ function ensureBattleArena3D(){
   const resizeObs = new ResizeObserver(()=>resizeBattleArena3D());
   resizeObs.observe(canvas.parentElement);
 
-  BATTLE3D = {scene, camera, renderer, coliseum, moodLight, resizeObs, raf:null, t:0};
+  BATTLE3D = {scene, camera, renderer, coliseum, moodLight, resizeObs, raf:null, t:0, camShot:null, heroModel:null, enemyModel:null};
   resizeBattleArena3D();
+  ensureBattleFighters3D();
   startBattleArena3DLoop();
 }
 
@@ -3340,15 +3346,34 @@ function startBattleArena3DLoop(){
   const tick = ()=>{
     BATTLE3D.raf = requestAnimationFrame(tick);
     BATTLE3D.t += 0.016;
-    // gentle torch flicker + a slow, barely-there camera drift so the
-    // backdrop reads as alive without competing with the 2D combat sprites
+    // gentle torch flicker so the backdrop reads as alive
     for(const tl of BATTLE3D.coliseum.userData.torchLights){
       const flick = 0.85 + Math.sin(BATTLE3D.t*9 + tl.phase)*0.1 + Math.sin(BATTLE3D.t*23+tl.phase)*0.05;
       tl.light.intensity = flick;
       tl.flame.scale.setScalar(0.9+flick*0.18);
     }
-    BATTLE3D.camera.position.x = Math.sin(BATTLE3D.t*0.08)*1.8;
-    BATTLE3D.camera.lookAt(0,3.5,-9);
+
+    tickBattleFighter(BATTLE3D.heroModel, BATTLE3D.t);
+    tickBattleFighter(BATTLE3D.enemyModel, BATTLE3D.t);
+
+    // camera: a slow idle sway over the whole arena, or — while an attack
+    // is landing — a brief cinematic push-in toward whoever is acting,
+    // eased in and back out across the pulse's duration
+    let camX = Math.sin(BATTLE3D.t*0.08)*1.8, camZ = 10, lookZ = -9;
+    if(BATTLE3D.camShot){
+      const el = (performance.now()-BATTLE3D.camShot.start)/BATTLE3D.camShot.duration;
+      if(el>=1){
+        BATTLE3D.camShot = null;
+      } else {
+        const p = Math.sin(Math.min(1,el)*Math.PI); // ease in, then back out
+        camX = camX*(1-p) + BATTLE3D.camShot.towardX*p;
+        camZ = 10 - p*3.4;
+        lookZ = -9 + p*7.5;
+      }
+    }
+    BATTLE3D.camera.position.set(camX, 4, camZ);
+    BATTLE3D.camera.lookAt(0, 3.3, lookZ);
+
     BATTLE3D.renderer.render(BATTLE3D.scene, BATTLE3D.camera);
   };
   tick();
@@ -3356,6 +3381,156 @@ function startBattleArena3DLoop(){
 
 function pauseBattleArena3D(){
   if(BATTLE3D && BATTLE3D.raf){ cancelAnimationFrame(BATTLE3D.raf); BATTLE3D.raf = null; }
+}
+
+/* ============== BATTLE FIGHTERS (3D) ==============
+   The old 2D stage-sprite portraits (hero-sprite/enemy-sprite) are hidden
+   via CSS now that both fighters stand in the coliseum as real 3D models.
+   Every bit of EXISTING 2D animation code (shakeFlash/classList idle|
+   collapse on those same elements) is left completely alone — it just
+   keeps running on now-invisible elements — and each of those call sites
+   gets one matching battle3DCue(...) call alongside it, so the 3D figures
+   lunge, flinch and collapse in sync with the same log lines/damage
+   numbers/timing the 2D version already used. */
+const HERO_SLOT_3D = {x:-3.4, y:0, z:2};
+const ENEMY_SLOT_3D = {x:3.4, y:0, z:2};
+
+function makeBattleEnemyModel(key){
+  // Troll Luis already has a full bespoke model built for the overworld —
+  // just reuse it here instead of inventing a second one
+  if(key==="luis") return makeTrollLuis();
+  const c = CLANS[key];
+  const group = new THREE.Group();
+  const cloth = new THREE.MeshStandardMaterial({color:c.color, roughness:0.75});
+  const dark = new THREE.MeshStandardMaterial({color:c.colorDark||c.color, roughness:0.85});
+  const skin = new THREE.MeshStandardMaterial({color:0xcf9a6e, roughness:0.8});
+  const metal = new THREE.MeshStandardMaterial({color:0x9a9488, metalness:0.5, roughness:0.4});
+
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.46,0.95,4,10), cloth);
+  body.position.y = 1.0;
+  group.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.36,14,12), skin);
+  head.position.y = 1.82;
+  group.add(head);
+  // a hooded cowl in the clan's dark tone — a generic silhouette that still
+  // reads as "a rival champion", distinct enough from the hero's bare head
+  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.42,0.5,12), dark);
+  hood.position.y = 2.08;
+  group.add(hood);
+  // an angular blade, instead of the hero's round hammer, so the two
+  // silhouettes don't read as mirrors of each other
+  const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.6,6), dark);
+  hilt.position.set(0.56,1.3,0.1); hilt.rotation.z = -0.5;
+  group.add(hilt);
+  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.9,4), metal);
+  blade.position.set(0.85,1.85,0.1); blade.rotation.z = -0.5;
+  group.add(blade);
+
+  group.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
+  return group;
+}
+
+function ensureBattleFighters3D(){
+  if(!BATTLE3D || BATTLE3D.heroModel) return;
+  const hero = makePlaceholderPlayer();
+  hero.scale.setScalar(1.3);
+  hero.position.set(HERO_SLOT_3D.x, HERO_SLOT_3D.y, HERO_SLOT_3D.z);
+  hero.rotation.y = -Math.PI/2; // face the enemy slot (+x)
+  hero.userData = {base:HERO_SLOT_3D, anim:null, collapsed:false};
+  BATTLE3D.scene.add(hero);
+  BATTLE3D.heroModel = hero;
+}
+
+// called once per fresh battle start: swaps in the right enemy model for
+// this clan and resets both fighters to a standing, uncollapsed pose (in
+// case the hero or a previous enemy was left mid-collapse from a prior fight)
+function swapBattleEnemyModel3D(key){
+  if(!BATTLE3D) return;
+  if(BATTLE3D.enemyModel){
+    BATTLE3D.scene.remove(BATTLE3D.enemyModel);
+    BATTLE3D.enemyModel = null;
+  }
+  const enemy = makeBattleEnemyModel(key);
+  enemy.scale.setScalar(key==="luis" ? 1.0 : 1.3);
+  enemy.position.set(ENEMY_SLOT_3D.x, ENEMY_SLOT_3D.y, ENEMY_SLOT_3D.z);
+  enemy.rotation.y = Math.PI/2; // face the hero slot (-x)
+  enemy.userData = {base:ENEMY_SLOT_3D, anim:null, collapsed:false};
+  BATTLE3D.scene.add(enemy);
+  BATTLE3D.enemyModel = enemy;
+
+  if(BATTLE3D.heroModel){
+    const hm = BATTLE3D.heroModel;
+    hm.position.set(HERO_SLOT_3D.x, HERO_SLOT_3D.y, HERO_SLOT_3D.z);
+    hm.rotation.set(0,-Math.PI/2,0);
+    hm.userData.anim = null; hm.userData.collapsed = false;
+  }
+}
+
+// kinds: "heroAttack","heroHit","enemyAttack","enemyHit","heroCollapse","enemyCollapse"
+function battle3DCue(kind){
+  if(!BATTLE3D) return;
+  const hero = BATTLE3D.heroModel, enemy = BATTLE3D.enemyModel;
+  const now = performance.now();
+  switch(kind){
+    case "heroAttack":
+      if(hero && !hero.userData.collapsed) hero.userData.anim = {type:"attack", start:now};
+      battle3DCameraPulse(-1.5);
+      break;
+    case "heroHit":
+      if(hero && !hero.userData.collapsed) hero.userData.anim = {type:"hit", start:now};
+      break;
+    case "enemyAttack":
+      if(enemy && !enemy.userData.collapsed) enemy.userData.anim = {type:"attack", start:now};
+      battle3DCameraPulse(1.5);
+      break;
+    case "enemyHit":
+      if(enemy && !enemy.userData.collapsed) enemy.userData.anim = {type:"hit", start:now};
+      break;
+    case "heroCollapse":
+      if(hero){ hero.userData.collapsed = true; hero.userData.anim = {type:"collapse", start:now}; }
+      break;
+    case "enemyCollapse":
+      if(enemy){ enemy.userData.collapsed = true; enemy.userData.anim = {type:"collapse", start:now}; }
+      break;
+  }
+}
+
+function battle3DCameraPulse(towardX){
+  if(!BATTLE3D) return;
+  BATTLE3D.camShot = {start: performance.now(), duration:650, towardX};
+}
+
+function tickBattleFighter(model, t){
+  if(!model) return;
+  const ud = model.userData, base = ud.base;
+  if(ud.collapsed){
+    if(ud.anim && ud.anim.type==="collapse"){
+      const p = Math.min(1, (performance.now()-ud.anim.start)/1100);
+      model.rotation.x = p*(Math.PI*0.42);
+      model.position.y = base.y - p*0.45;
+      if(p>=1) ud.anim = null;
+    }
+    return;
+  }
+  const bob = Math.sin(t*2.2 + (base.x>0?1.7:0))*0.05;
+  if(!ud.anim){
+    model.position.set(base.x, base.y+bob, base.z);
+    model.rotation.z = 0;
+    return;
+  }
+  const elapsed = (performance.now()-ud.anim.start)/1000;
+  const dir = base.x<0 ? 1 : -1; // toward the opponent
+  if(ud.anim.type==="attack"){
+    const p = Math.min(1, elapsed/0.45);
+    model.position.set(base.x + Math.sin(p*Math.PI)*0.9*dir, base.y+bob, base.z);
+    model.rotation.z = Math.sin(p*Math.PI)*0.15*dir;
+    if(p>=1) ud.anim = null;
+  } else if(ud.anim.type==="hit"){
+    const p = Math.min(1, elapsed/0.3);
+    model.position.set(base.x - Math.sin(p*Math.PI)*0.35*dir, base.y+bob, base.z);
+    model.rotation.z = Math.sin(p*Math.PI*2)*0.08;
+    if(p>=1) ud.anim = null;
+  }
 }
 
 /* ============== BATTLE SETUP ============== */
@@ -3561,9 +3736,11 @@ function playerAttack(){
   b.enemy.hp = clamp(b.enemy.hp - dmg, 0, b.enemy.hpMax);
   shakeFlash("#enemy-icon", crit?"flash":"shake");
   shakeFlash("#hero-sprite","atk-right");
+  battle3DCue("heroAttack");
   setTimeout(()=>{
     shakeFlash("#enemy-sprite","shake");
     spawnImpactFX("#enemy-sprite", crit ? "#ffb020" : "#e9e9e9");
+    battle3DCue("enemyHit");
     if(crit) shakeFlash("#battle-arena","arena-shake");
   }, 160);
   popDamage(".combatant.enemy", "-"+dmg, false, crit);
@@ -3577,12 +3754,13 @@ function playerSpecial(){
   S.hero.en -= sp.cost;
   shakeFlash("#hero-icon","flash");
   shakeFlash("#hero-sprite","charge");
-  setTimeout(()=>shakeFlash("#hero-sprite","atk-right"), 220);
+  setTimeout(()=>{ shakeFlash("#hero-sprite","atk-right"); battle3DCue("heroAttack"); }, 220);
   const dmg = Math.max(8, Math.round((heroEffectiveAtk()*1.9) - enemyEffectiveDef()*0.6));
   b.enemy.hp = clamp(b.enemy.hp - dmg, 0, b.enemy.hpMax);
   setTimeout(()=>{
     shakeFlash("#enemy-sprite","shake");
     spawnImpactFX("#enemy-sprite", "#ff9a40");
+    battle3DCue("enemyHit");
     shakeFlash("#battle-arena","arena-shake");
   }, 380);
   popDamage(".combatant.enemy", "-"+dmg);
@@ -3662,9 +3840,11 @@ function enemyTurn(){
     S.hero.hp = clamp(S.hero.hp-dmg,0,S.hero.hpMax);
     shakeFlash("#hero-icon","shake");
     shakeFlash("#enemy-sprite","atk-left");
+    battle3DCue("enemyAttack");
     setTimeout(()=>{
       shakeFlash("#hero-sprite","shake");
       spawnImpactFX("#hero-sprite", c.color);
+      battle3DCue("heroHit");
     }, 160);
     if(immortal){
       log(`${c.champ} ataca, pero el golpe rebota — ¡eres inmortal!`);
@@ -3680,6 +3860,7 @@ function castEnemySpecial(c){
   const b = S.battle, sp = c.special;
   shakeFlash("#enemy-icon","flash");
   shakeFlash("#enemy-sprite","charge");
+  battle3DCue("enemyAttack");
   switch(sp.kind){
     case "debuff_def":
       S.hero.statuses = S.hero.statuses.filter(s=>s.kind!=="defDown");
@@ -3694,6 +3875,7 @@ function castEnemySpecial(c){
       setTimeout(()=>{
         shakeFlash("#hero-sprite","shake");
         spawnImpactFX("#hero-sprite", c.color);
+        battle3DCue("heroHit");
         shakeFlash("#battle-arena","arena-shake");
       }, 220);
       if(immortal){
@@ -3783,6 +3965,7 @@ function winBattle(){
   renderHUD();
   $("enemy-sprite").classList.remove("idle");
   $("enemy-sprite").classList.add("collapse");
+  battle3DCue("enemyCollapse");
   setTimeout(()=>{
     // winning requires every one of the six realms, the Cueva HSE, AND the
     // parkour chest — none of the three are purely optional, per user request
@@ -3803,6 +3986,7 @@ function loseBattle(){
   renderBattle();
   $("hero-sprite").classList.remove("idle");
   $("hero-sprite").classList.add("collapse");
+  battle3DCue("heroCollapse");
   setTimeout(()=>{
     $("defeat-summary").innerHTML = `
       <div><span>Nivel alcanzado</span><b>${S.hero.level}</b></div>
