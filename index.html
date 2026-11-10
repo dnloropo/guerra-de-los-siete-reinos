@@ -130,6 +130,31 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
 #dpad .d-right{grid-column:3; grid-row:2;}
 #dpad .d-down{grid-column:2; grid-row:3;}
 @media (min-width:821px) and (hover:hover){ #dpad{display:none;} }
+#minimap-btn{
+  position:absolute; left:14px; top:14px; z-index:6;
+  width:40px; height:40px; border-radius:10px; font-size:18px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--bg2) 82%, transparent); backdrop-filter:blur(2px);
+  border:1px solid var(--line);
+}
+#minimap-btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+#minimap-overlay{
+  position:absolute; left:14px; top:64px; z-index:6;
+  width:216px; background:color-mix(in srgb, var(--bg2) 92%, transparent);
+  border:1px solid var(--line); border-radius:10px; padding:10px 10px 8px;
+  backdrop-filter:blur(4px); opacity:0; transform:translateY(-6px) scale(.97);
+  pointer-events:none; transition:opacity .18s ease, transform .18s ease;
+}
+#minimap-overlay.open{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
+#minimap-overlay h4{margin:0 0 6px; font-size:11px; color:var(--ink-dim); font-weight:600; text-transform:uppercase; letter-spacing:.05em;}
+#minimap-svg{width:100%; display:block; border-radius:6px;}
+.minimap-label{font-size:7.5px; fill:var(--ink); font-family:inherit; text-anchor:middle; pointer-events:none;}
+.minimap-legend{display:flex; align-items:center; gap:10px; font-size:10.5px; color:var(--ink-dim); margin-top:7px; flex-wrap:wrap;}
+.minimap-legend span{display:flex; align-items:center; gap:4px;}
+.minimap-legend .dot{width:8px; height:8px; border-radius:50%; flex:none; border:1px solid var(--line);}
+.minimap-progress{margin-top:6px; font-size:11px; color:var(--ink-dim); text-align:right;}
+.minimap-progress b{color:var(--ink);}
+@media (max-width:520px){ #minimap-overlay{width:168px;} .minimap-legend{display:none;} }
 
 /* ---------- DIALOGUE (pre-battle scene / epilogue narration) ---------- */
 #view-dialogue{align-items:center; justify-content:center; cursor:pointer;}
@@ -400,6 +425,17 @@ footer.hint{
     </div>
     <div id="map-wrap">
       <div id="world3d"></div>
+      <button id="minimap-btn" aria-label="Mostrar mapa de los reinos" title="Mapa de los reinos">🗺️</button>
+      <div id="minimap-overlay">
+        <h4>Mapa de los reinos</h4>
+        <svg id="minimap-svg" viewBox="0 0 300 225" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="minimap-legend">
+          <span><span class="dot" style="background:var(--accent)"></span>Tú</span>
+          <span><span class="dot" style="background:var(--warn)"></span>Hogar</span>
+          <span><span class="dot" style="background:var(--good)"></span>Aliado</span>
+        </div>
+        <div class="minimap-progress">Reinos conquistados: <b id="minimap-progress-num"></b></div>
+      </div>
       <div id="map-tip">Acércate a un territorio para ver quién lo custodia.</div>
       <div id="dpad">
         <button class="d-up" data-dir="up" aria-label="Arriba">▲</button>
@@ -818,6 +854,7 @@ function setView(name){
   $("view-"+name).classList.add("active");
   if(name==="map"){
     ensureWorld3D();
+    if(minimapOpen) renderMinimapStatic();
   } else {
     pauseWorld3D();
   }
@@ -841,6 +878,64 @@ function renderHUD(){
     <div class="realms">${dots}</div>
   `;
   hud.forEach(el=>el.innerHTML = html);
+}
+
+/* ============== MINIMAP (2D top-down schematic overlay) ============== */
+let minimapOpen = false;
+function minimapXY(x3, z3){
+  // converts a position already in the walkable 3D world (whatever is in
+  // W3D.player.position / castles[key].p3 / caveP3) back to the original
+  // 2D WORLD_POS/WORLD_SIZE space, then into the 300x225 svg viewBox
+  return {
+    x:(x3/SCALE3D)/WORLD_SIZE.w*300,
+    y:(z3/SCALE3D)/WORLD_SIZE.h*225
+  };
+}
+function renderMinimapStatic(){
+  const svg = $("minimap-svg");
+  if(!svg || !W3D) return;
+  let parts = `<rect x="0" y="0" width="300" height="225" rx="8" fill="var(--panel)"></rect>`;
+  // home castle (Ritchie)
+  const home = minimapXY(W3D.home3.x, W3D.home3.z);
+  parts += `<circle cx="${home.x}" cy="${home.y}" r="7" fill="var(--warn)" stroke="var(--bg2)" stroke-width="1.5"></circle>`;
+  parts += `<text class="minimap-label" x="${home.x}" y="${home.y+14}">Ritchie</text>`;
+  // cave troll landmark
+  if(W3D.caveP3){
+    const cave = minimapXY(W3D.caveP3.x, W3D.caveP3.z);
+    const caveWon = S.conquered.includes("cueva");
+    parts += `<circle cx="${cave.x}" cy="${cave.y}" r="5" fill="${caveWon?'var(--good)':'#4a4336'}" stroke="var(--bg2)" stroke-width="1"></circle>`;
+    parts += `<text class="minimap-label" x="${cave.x}" y="${cave.y+12}">Cueva</text>`;
+  }
+  // rival clan castles
+  CLAN_ORDER.forEach(key=>{
+    const p3 = W3D.castles[key].p3;
+    const p = minimapXY(p3.x, p3.z);
+    const won = S.conquered.includes(key);
+    const c = CLANS[key];
+    parts += `<circle cx="${p.x}" cy="${p.y}" r="7" fill="${won?'var(--good)':c.color}" stroke="${won?'var(--good)':'var(--bg2)'}" stroke-width="1.5"></circle>`;
+    if(won) parts += `<text x="${p.x}" y="${p.y+2.6}" text-anchor="middle" font-size="7" fill="#fff">✓</text>`;
+    parts += `<text class="minimap-label" x="${p.x}" y="${p.y+14}">${c.name}</text>`;
+  });
+  // player marker, drawn last so it's always on top; updated per-frame below
+  parts += `<polygon id="minimap-player" points="0,-8 6,6 0,3 -6,6" fill="var(--accent)" stroke="#fff" stroke-width="1.3"></polygon>`;
+  svg.innerHTML = parts;
+  const progEl = $("minimap-progress-num");
+  if(progEl) progEl.textContent = `${realmsConqueredCount()} / ${CLAN_ORDER.length}`;
+  updateMinimapPlayer();
+}
+function updateMinimapPlayer(){
+  if(!minimapOpen || !W3D) return;
+  const marker = $("minimap-player");
+  if(!marker) return;
+  const p = minimapXY(W3D.player.position.x, W3D.player.position.z);
+  const deg = W3D.facing*180/Math.PI;
+  marker.setAttribute("transform", `translate(${p.x},${p.y}) rotate(${deg})`);
+}
+function toggleMinimap(){
+  minimapOpen = !minimapOpen;
+  $("minimap-btn").classList.toggle("active", minimapOpen);
+  $("minimap-overlay").classList.toggle("open", minimapOpen);
+  if(minimapOpen) renderMinimapStatic();
 }
 
 /* ============== MAP (walkable 3D overworld, Three.js) ============== */
@@ -2424,6 +2519,8 @@ function updateWorld3D(dt){
   W3D.camera.position.lerp(desired, Math.min(1, dt*4));
   W3D.camera.lookAt(W3D.player.position.x, 1.3, W3D.player.position.z);
 
+  updateMinimapPlayer();
+
   // flag wave
   const t = performance.now()*0.002;
   Object.values(W3D.castles).forEach((z,i)=>{
@@ -3743,6 +3840,8 @@ document.querySelectorAll("#dpad button").forEach(btn=>{
   btn.addEventListener("pointerleave", release);
   btn.addEventListener("pointercancel", release);
 });
+
+$("minimap-btn").addEventListener("click", toggleMinimap);
 
 /* ============== HOT RELOAD / SNAPSHOT ============== */
 function saveSnapshot(){
