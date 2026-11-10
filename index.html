@@ -2614,16 +2614,24 @@ function updateWorld3D(dt){
   const up = keysDown["arrowup"]||keysDown["w"]||touchDir.up;
   const down = keysDown["arrowdown"]||keysDown["s"]||touchDir.down;
 
-  let vx=0, vz=0;
-  if(left) vx -= 1;
-  if(right) vx += 1;
-  if(up) vz -= 1;
-  if(down) vz += 1;
+  let rawVx=0, rawVz=0;
+  if(left) rawVx -= 1;
+  if(right) rawVx += 1;
+  if(up) rawVz -= 1;
+  if(down) rawVz += 1;
 
-  const moving = vx!==0 || vz!==0;
+  const moving = rawVx!==0 || rawVz!==0;
+  let vx=0, vz=0;
   if(moving){
-    const len = Math.hypot(vx,vz)||1;
-    vx/=len; vz/=len;
+    const len = Math.hypot(rawVx,rawVz)||1;
+    const nx = rawVx/len, nz = rawVz/len;
+    // the d-pad/WASD input is screen-relative ("up" = away from camera, as
+    // drawn), so it has to be rotated by the camera's current orbit angle
+    // before becoming a world-space direction — otherwise, once the camera
+    // has been dragged around, "forward" still means world -Z and movement
+    // looks mirrored/backwards relative to what's on screen
+    vx = nx*Math.cos(W3D.camOrbit) + nz*Math.sin(W3D.camOrbit);
+    vz = -nx*Math.sin(W3D.camOrbit) + nz*Math.cos(W3D.camOrbit);
     W3D.player.position.x = clamp(W3D.player.position.x + vx*SPEED*dt, 1.5, WORLD_W3D-1.5);
     W3D.player.position.z = clamp(W3D.player.position.z + vz*SPEED*dt, 1.5, WORLD_H3D-1.5);
 
