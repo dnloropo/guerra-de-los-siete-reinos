@@ -600,8 +600,11 @@ const DIALOGUES = {
     {who:"hero", text:"Yo forjo con el fuego que tú apenas te atreves a soltar. Vamos, suelta el rayo."}
   ],
   gosling:[
+    {who:"narrator", text:"Dicen que el clan de Java fue exterminado hace tiempo — sus guerreros cayeron, y a los que quedaron los repartieron entre los demás clanes del reino. Solo uno se negó a dejar morir la bandera."},
     {who:"enemy", text:"Siéntate, forastero. Hay café para los dos... después de que pierdas, claro."},
-    {who:"hero", text:"Gracias, pero prefiero ganarme la taza antes de bebérmela."}
+    {who:"hero", text:"Gracias, pero prefiero ganarme la taza antes de bebérmela."},
+    {who:"enemy", text:"Lo que ves no es un reino, forjador. Es lo poco que quedó, cosido con lo que los otros clanes no quisieron quedarse."},
+    {who:"hero", text:"Entonces no vengo a borrar lo último que te queda. Vengo a ver si todavía sabes defenderlo."}
   ],
   vanrossum:[
     {who:"enemy", text:"Shhh. No hace falta prisa. El veneno de la selva siempre llega, tarde o temprano."},
@@ -1817,11 +1820,16 @@ function decorateWorld3D(scene, home3, clanPts, randomSpot){
   let rpIdx=0, rcIdx=0;
   const ruinSites = 7;
   for(let s=0;s<ruinSites;s++){
-    const center = randomSpot(1.6);
+    const center = randomSpot(3.4);
     if(!center) continue;
     const count = 2+Math.floor(Math.random()*3);
+    // each pillar gets its own angular slice of the cluster (plus a little
+    // jitter) instead of a fully random angle, so bigger pillars don't land
+    // on top of each other; distance from the site center is pushed out
+    // past the pillars' own footprint for the same reason
+    const slice = (Math.PI*2)/count;
     for(let i=0;i<count;i++){
-      const ang = Math.random()*Math.PI*2, dist = Math.random()*2.6;
+      const ang = slice*i + (Math.random()-0.5)*slice*0.6, dist = 2.2+Math.random()*2.4;
       const px = center.x+Math.cos(ang)*dist, pz = center.z+Math.sin(ang)*dist;
       const broken = Math.random()<0.45;
       const h = (broken ? 0.3+Math.random()*0.4 : 0.8+Math.random()*0.25) * 2; // doubled: taller/thicker ruin pillars
