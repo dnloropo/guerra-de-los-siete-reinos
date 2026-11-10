@@ -1984,7 +1984,7 @@ function scatterNature(scene, randomSpot, real){
     // flowers: real red/yellow/purple blooms, scattered in loose patches,
     // scaled up to match the bigger grass/trees/rocks so they still read
     [real.flowerRed, real.flowerYellow, real.flowerPurple].forEach(tpl=>{
-      const patchCount = 48;
+      const patchCount = 72;
       for(let p=0;p<patchCount;p++){
         const center = randomSpot(0.3);
         if(!center) continue;
@@ -2083,7 +2083,7 @@ function scatterNature(scene, randomSpot, real){
   const stems = new THREE.InstancedMesh(stemGeo, stemMat, 2000);
   let sIdx = 0;
   flowerColors.forEach(colorHex=>{
-    const patchCount = 45;
+    const patchCount = 68;
     const perPatch = 5;
     const mat = new THREE.MeshStandardMaterial({color:colorHex, roughness:0.6});
     const bloom = new THREE.InstancedMesh(flowerGeo, mat, patchCount*perPatch);
