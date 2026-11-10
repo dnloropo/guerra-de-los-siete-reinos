@@ -2642,6 +2642,13 @@ function updateWorld3D(dt){
     }
   }
   const SPEED = 26 * 0.7 * 0.8; // 30% slower, then another 20% slower, per user requests
+  // the collision checks against parkour platforms treat the player as a
+  // single point (just their position), but the visible character model has
+  // real width (body capsule + the hammer held out to one side) — without a
+  // margin, that point can be stopped exactly at a platform's edge while the
+  // model's body still visibly pokes into the slab, which reads as "passing
+  // through" even though the logical position never entered it
+  const PLAYER_RADIUS = 0.5;
   const left = keysDown["arrowleft"]||keysDown["a"]||touchDir.left;
   const right = keysDown["arrowright"]||keysDown["d"]||touchDir.right;
   const up = keysDown["arrowup"]||keysDown["w"]||touchDir.up;
@@ -2672,7 +2679,7 @@ function updateWorld3D(dt){
     // the player could just walk straight through a platform's side or belly
     const py = W3D.player.position.y;
     const blockedAt = (x,z)=> (W3D.parkourPlatforms||[]).some(p=>
-      Math.abs(x-p.x)<p.hx && Math.abs(z-p.z)<p.hz && py<p.slabTop-0.05 && py>p.slabBottom-1.6
+      Math.abs(x-p.x)<p.hx+PLAYER_RADIUS && Math.abs(z-p.z)<p.hz+PLAYER_RADIUS && py<p.slabTop-0.05 && py>p.slabBottom-1.6
     );
     const newX = clamp(W3D.player.position.x + vx*SPEED*dt, 1.5, WORLD_W3D-1.5);
     if(!blockedAt(newX, W3D.player.position.z)) W3D.player.position.x = newX;
