@@ -198,6 +198,7 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
 }
 .status-chip.poison{background:var(--good); color:#0d1a10;}
 .status-chip.stun{background:var(--bad); color:#fff;}
+.status-chip.immortal{background:#ffd700; color:#3a2b00; box-shadow:0 0 6px 1px rgba(255,215,0,.6);}
 
 #battle-stage{
   flex:1; min-height:70px; display:flex; align-items:flex-end; justify-content:space-between;
@@ -465,6 +466,7 @@ footer.hint{
       <div id="item-popover">
         <button id="item-potion-hp" class="mono"></button>
         <button id="item-potion-en" class="mono"></button>
+        <button id="item-potion-immortal" class="mono"></button>
         <button id="item-cancel" class="mono">Cancelar</button>
       </div>
 
@@ -799,7 +801,7 @@ function freshState(){
     screen:"title",
     hero:{
       level:1, hpMax:100, hp:100, enMax:60, en:60, atk:14, def:5,
-      potionsHp:2, potionsEn:2, statuses:[] // {kind:'defDown'|'atkUp'|'defUp', turns}
+      potionsHp:2, potionsEn:2, potionsImmortal:1, statuses:[] // {kind:'defDown'|'atkUp'|'defUp'|'immortal', turns}
     },
     conquered:[],
     battle:null // {clanKey, enemy:{hp,hpMax,statuses:[]}, log:[], turn:'player'|'enemy', over:false}
@@ -2565,10 +2567,12 @@ function statusChipHtml(s){
   const labels = {
     defDown:{t:"DEF ↓", cls:""}, atkDown:{t:"ATK ↓", cls:""},
     defUp:{t:"DEF ↑", cls:""}, atkUp:{t:"ATK ↑", cls:""},
-    poison:{t:"☠ Veneno", cls:"poison"}, stun:{t:"✺ Aturdido", cls:"stun"}
+    poison:{t:"☠ Veneno", cls:"poison"}, stun:{t:"✺ Aturdido", cls:"stun"},
+    immortal:{t:"✨ Inmortal", cls:"immortal"}
   };
   const l = labels[s.kind] || {t:s.kind, cls:""};
-  return `<span class="status-chip ${l.cls}">${l.t} ${s.turns}</span>`;
+  const turnsLabel = s.kind==="immortal" ? "∞" : s.turns;
+  return `<span class="status-chip ${l.cls}">${l.t} ${turnsLabel}</span>`;
 }
 
 function renderBattle(fresh){
@@ -2610,18 +2614,20 @@ function renderBattle(fresh){
   $("battle-log").scrollTop = $("battle-log").scrollHeight;
 
   $("special-cost").textContent = `${c && CLANS.ritchie ? '' : ''}${heroSpecial().name} · ${heroSpecial().cost} EN`;
-  $("item-count").textContent = `${h.potionsHp} HP · ${h.potionsEn} EN`;
+  $("item-count").textContent = `${h.potionsHp} HP · ${h.potionsEn} EN · ${h.potionsImmortal} Inmortal`;
 
   const locked = b.locked || b.over;
   $("act-attack").disabled = locked;
   $("act-special").disabled = locked || h.en < heroSpecial().cost;
-  $("act-item").disabled = locked || (h.potionsHp<=0 && h.potionsEn<=0);
+  $("act-item").disabled = locked || (h.potionsHp<=0 && h.potionsEn<=0 && h.potionsImmortal<=0);
   $("act-flee").disabled = locked;
 
   $("item-potion-hp").textContent = `Poción de HP (+35 HP) — x${h.potionsHp}`;
   $("item-potion-hp").disabled = h.potionsHp<=0;
   $("item-potion-en").textContent = `Poción de Energía (+30 EN) — x${h.potionsEn}`;
   $("item-potion-en").disabled = h.potionsEn<=0;
+  $("item-potion-immortal").textContent = `✨ Poción de Inmortalidad (nada vuelve a dañarte) — x${h.potionsImmortal}`;
+  $("item-potion-immortal").disabled = h.potionsImmortal<=0;
 }
 
 function heroSpecial(){
@@ -2781,6 +2787,13 @@ function playerItem(kind){
     spawnAuraFX("#hero-sprite", "#4ad8e8");
     log(`Bebes una poción de Energía. Recuperas <b>${heal}</b> EN.`);
     closeItemPopover(); afterPlayerAction();
+  } else if(kind==="immortal" && h.potionsImmortal>0){
+    h.potionsImmortal--;
+    h.statuses = h.statuses.filter(s=>s.kind!=="immortal");
+    h.statuses.push({kind:"immortal", turns:999}); // hero statuses persist across battles, so this effectively lasts the rest of the playthrough
+    spawnAuraFX("#hero-sprite", "#ffd700");
+    log(`Bebes la <b>Poción de Inmortalidad</b>. ¡Nada puede volver a dañarte en esta partida!`);
+    closeItemPopover(); afterPlayerAction();
   }
 }
 
@@ -2825,7 +2838,8 @@ function enemyTurn(){
   if(useSpecial){
     castEnemySpecial(c);
   } else {
-    const dmg = Math.max(3, enemyEffectiveAtk() - heroEffectiveDef() + Math.round(Math.random()*5));
+    const immortal = hasStatus(S.hero.statuses,"immortal");
+    const dmg = immortal ? 0 : Math.max(3, enemyEffectiveAtk() - heroEffectiveDef() + Math.round(Math.random()*5));
     S.hero.hp = clamp(S.hero.hp-dmg,0,S.hero.hpMax);
     shakeFlash("#hero-icon","shake");
     shakeFlash("#enemy-sprite","atk-left");
@@ -2833,8 +2847,12 @@ function enemyTurn(){
       shakeFlash("#hero-sprite","shake");
       spawnImpactFX("#hero-sprite", c.color);
     }, 160);
-    popDamage(".combatant.hero","-"+dmg);
-    log(`${c.champ} ataca. Recibes <b>${dmg}</b> de daño.`);
+    if(immortal){
+      log(`${c.champ} ataca, pero el golpe rebota — ¡eres inmortal!`);
+    } else {
+      popDamage(".combatant.hero","-"+dmg);
+      log(`${c.champ} ataca. Recibes <b>${dmg}</b> de daño.`);
+    }
   }
   endEnemyTurn();
 }
@@ -2851,21 +2869,26 @@ function castEnemySpecial(c){
       log(`${c.champ} usa <b>${sp.name}</b>. Tu defensa cae por 2 turnos.`);
       break;
     case "stun_dmg": {
-      const dmg = Math.max(5, Math.round(enemyEffectiveAtk()*1.3) - heroEffectiveDef());
+      const immortal = hasStatus(S.hero.statuses,"immortal");
+      const dmg = immortal ? 0 : Math.max(5, Math.round(enemyEffectiveAtk()*1.3) - heroEffectiveDef());
       S.hero.hp = clamp(S.hero.hp-dmg,0,S.hero.hpMax);
       setTimeout(()=>{
         shakeFlash("#hero-sprite","shake");
         spawnImpactFX("#hero-sprite", c.color);
         shakeFlash("#battle-arena","arena-shake");
       }, 220);
-      popDamage(".combatant.hero","-"+dmg);
-      let msg = `${c.champ} usa <b>${sp.name}</b>. Infliges perdón, infliges <b>${dmg}</b> de daño.`;
-      if(Math.random()<0.4){
-        S.hero.statuses = S.hero.statuses.filter(s=>s.kind!=="stun");
-        S.hero.statuses.push({kind:"stun",turns:1});
-        msg = `${c.champ} usa <b>${sp.name}</b>. Recibes <b>${dmg}</b> de daño y quedas <b>aturdido</b>.`;
+      if(immortal){
+        log(`${c.champ} usa <b>${sp.name}</b>, pero no logra tocarte — ¡eres inmortal!`);
+      } else {
+        popDamage(".combatant.hero","-"+dmg);
+        let msg = `${c.champ} usa <b>${sp.name}</b>. Recibes <b>${dmg}</b> de daño.`;
+        if(Math.random()<0.4){
+          S.hero.statuses = S.hero.statuses.filter(s=>s.kind!=="stun");
+          S.hero.statuses.push({kind:"stun",turns:1});
+          msg = `${c.champ} usa <b>${sp.name}</b>. Recibes <b>${dmg}</b> de daño y quedas <b>aturdido</b>.`;
+        }
+        log(msg);
       }
-      log(msg);
       break;
     }
     case "heal_self": {
@@ -2905,9 +2928,9 @@ function endEnemyTurn(){
   const b = S.battle;
   if(S.hero.hp<=0){ loseBattle(); return; }
 
-  // poison tick on hero
+  // poison tick on hero (blocked entirely while the immortality potion is active)
   const poison = hasStatus(S.hero.statuses,"poison");
-  if(poison){
+  if(poison && !hasStatus(S.hero.statuses,"immortal")){
     const pdmg = 7;
     S.hero.hp = clamp(S.hero.hp-pdmg,0,S.hero.hpMax);
     popDamage(".combatant.hero","-"+pdmg);
@@ -2934,7 +2957,7 @@ function winBattle(){
   S.hero.hpMax += 14; S.hero.hp = S.hero.hpMax;
   S.hero.enMax += 6; S.hero.en = S.hero.enMax;
   S.hero.atk += 2;
-  S.hero.potionsHp = 2; S.hero.potionsEn = 2; // restock potions after every boss kill, per user request
+  S.hero.potionsHp = 2; S.hero.potionsEn = 2; S.hero.potionsImmortal = 1; // restock potions after every boss kill, per user request
   renderBattle();
   renderHUD();
   $("enemy-sprite").classList.remove("idle");
@@ -3706,6 +3729,7 @@ $("act-item").addEventListener("click", ()=>{
 });
 $("item-potion-hp").addEventListener("click", ()=>playerItem("hp"));
 $("item-potion-en").addEventListener("click", ()=>playerItem("en"));
+$("item-potion-immortal").addEventListener("click", ()=>playerItem("immortal"));
 $("item-cancel").addEventListener("click", closeItemPopover);
 $("act-flee").addEventListener("click", ()=>{ closeItemPopover(); playerFlee(); });
 
