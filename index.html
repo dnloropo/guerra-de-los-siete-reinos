@@ -2418,6 +2418,21 @@ function buildWorld3D(){
   upgradeCastlesToRealModels(castleUpgradeQueue);
   upgradeWorldProps(scene, castlePropSpecs);
 
+  // solid collision for every castle's wall compound (an axis-aligned
+  // square matching makeCastle's own wall layout: half = wallLen/2 * SC —
+  // see makeCastle, where wallLen = 10*SC), so the player can no longer
+  // just walk straight through the walls. An unconquered clan castle keeps
+  // no safety margin on top of its bare wall footprint — its corner
+  // (half*sqrt2) stays comfortably inside TRIGGER_RADIUS_3D, so the
+  // walk-up-to-challenge battle always fires before the player could reach
+  // the wall anyway. The home castle (no battle trigger) and any already-
+  // conquered clan castle get the same PLAYER_RADIUS margin the parkour
+  // platforms use, since there's no trigger distance to stay clear of there
+  const castleColliders = CLAN_ORDER.map(key=>({
+    key, x:castles[key].p3.x, z:castles[key].p3.z, half: 10*1.4/2
+  }));
+  castleColliders.push({key:null, x:home3.x, z:home3.z, half: 10*1.75/2});
+
   // a siege ballista aimed at the strongest rival stronghold's gate, a
   // small "war between clans" detail along the approach from home
   const strongestKey = CLAN_ORDER.reduce((best,k)=> CLANS[k].hp>CLANS[best].hp?k:best, CLAN_ORDER[0]);
@@ -2513,7 +2528,8 @@ function buildWorld3D(){
     resizeObs:null, active:false, waterTextures,
     caveP3:{x:caveX, z:caveZ},
     camOrbit:0, // player-drag-controlled horizontal angle around the player, third-person orbit
-    velY:0, grounded:true, ridingPlatform:null, parkourPlatforms, chest, chestP3:{x:lastPlat.x, y:lastPlat.y, z:lastPlat.z}
+    velY:0, grounded:true, ridingPlatform:null, parkourPlatforms, chest, chestP3:{x:lastPlat.x, y:lastPlat.y, z:lastPlat.z},
+    castleColliders
   };
   const ro = new ResizeObserver(()=>resizeWorld3D());
   ro.observe(container);
@@ -2691,9 +2707,20 @@ function updateWorld3D(dt){
     // fallback below, so there's no seam between slightly-different checks
     // to snag or slip on
     const py = W3D.player.position.y;
-    const blockedAt = (x,z)=> (W3D.parkourPlatforms||[]).some(p=>
-      Math.abs(x-p.x)<p.hx+PLAYER_RADIUS && Math.abs(z-p.z)<p.hz+PLAYER_RADIUS && py<p.slabTop-0.05 && py>p.slabBottom-1.6
-    );
+    const blockedAt = (x,z)=>{
+      if((W3D.parkourPlatforms||[]).some(p=>
+        Math.abs(x-p.x)<p.hx+PLAYER_RADIUS && Math.abs(z-p.z)<p.hz+PLAYER_RADIUS && py<p.slabTop-0.05 && py>p.slabBottom-1.6
+      )) return true;
+      // castle walls: an unconquered clan castle keeps no margin (its
+      // corner stays inside the battle-trigger ring on purpose — see where
+      // castleColliders is built), the home castle and a conquered clan
+      // castle add the same body-width margin the platforms use
+      if((W3D.castleColliders||[]).some(c=>{
+        const margin = (c.key===null || S.conquered.includes(c.key)) ? PLAYER_RADIUS : 0;
+        return Math.abs(x-c.x)<c.half+margin && Math.abs(z-c.z)<c.half+margin;
+      })) return true;
+      return false;
+    };
     const curX = W3D.player.position.x, curZ = W3D.player.position.z;
     const wantX = clamp(curX + vx*SPEED*dt, 1.5, WORLD_W3D-1.5);
     const wantZ = clamp(curZ + vz*SPEED*dt, 1.5, WORLD_H3D-1.5);
