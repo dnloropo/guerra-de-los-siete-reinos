@@ -263,9 +263,10 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
 
 #battle-stage{
   flex:1; min-height:70px; display:flex; align-items:flex-end; justify-content:space-between;
-  padding:4px 10px 10px; position:relative;
+  padding:4px 10px 10px; position:relative; border-radius:8px; overflow:hidden;
 }
-.stage-fighter{display:flex; flex-direction:column; align-items:center; gap:4px; position:relative;}
+#battle-3d-canvas{position:absolute; inset:0; width:100%; height:100%; display:block; z-index:0;}
+.stage-fighter{display:flex; flex-direction:column; align-items:center; gap:4px; position:relative; z-index:1;}
 .stage-shadow{width:70%; height:10px; border-radius:50%; background:rgba(0,0,0,.22); filter:blur(1px);}
 .stage-sprite{
   width:min(149px, 32vw); height:min(149px, 32vw); filter:drop-shadow(0 6px 10px rgba(0,0,0,.28));
@@ -550,6 +551,7 @@ footer.hint{
       </div>
 
       <div id="battle-stage">
+        <canvas id="battle-3d-canvas"></canvas>
         <div class="stage-fighter stage-hero"><div class="stage-shadow"></div><div class="stage-sprite" id="hero-sprite"></div></div>
         <div class="stage-fighter stage-enemy"><div class="stage-shadow"></div><div class="stage-sprite" id="enemy-sprite"></div></div>
       </div>
@@ -942,7 +944,12 @@ function setView(name){
   } else {
     pauseWorld3D();
   }
-  if(name==="battle") renderBattle(true);
+  if(name==="battle"){
+    renderBattle(true);
+    ensureBattleArena3D();
+  } else {
+    pauseBattleArena3D();
+  }
   renderHUD();
   saveSnapshot();
 }
@@ -3208,6 +3215,149 @@ function realmsConqueredCount(){
   return S.conquered.filter(k=>CLAN_ORDER.includes(k)).length;
 }
 
+/* ============== BATTLE ARENA (3D coliseum backdrop) ==============
+   A lightweight, persistent Three.js scene rendered behind the existing
+   2D battle UI — combatant portraits, stat bars, log and action buttons
+   are all untouched; this just replaces the flat tinted rectangle behind
+   the fighter sprites with an actual stone coliseum. Built once on the
+   first battle and reused after that; only the torchlight color is
+   retinted per clan (via updateBattleArena3DMood) so each fight still
+   feels a little different. */
+let BATTLE3D = null;
+
+function buildColiseumGroup(){
+  const group = new THREE.Group();
+  const sand = new THREE.MeshStandardMaterial({color:0xc9a06a, roughness:0.95});
+  const stone = new THREE.MeshStandardMaterial({color:0x8c8276, roughness:0.9, flatShading:true});
+  const stoneDark = new THREE.MeshStandardMaterial({color:0x5a5248, roughness:0.95, flatShading:true});
+
+  const floor = new THREE.Mesh(new THREE.CylinderGeometry(17,17,1,40), sand);
+  floor.position.y = -0.5;
+  floor.receiveShadow = true;
+  group.add(floor);
+
+  // the surrounding wall: an open-ended tube plus a ring of crenellation
+  // blocks along its top edge — same "stone wall + evenly spaced cubes"
+  // language the overworld castles use, just arranged in a circle
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(19,20,7,40,1,true), stone);
+  wall.position.y = 3;
+  group.add(wall);
+  const CREN = 40;
+  for(let i=0;i<CREN;i++){
+    const ang = (i/CREN)*Math.PI*2;
+    const c = new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,1.1), stoneDark);
+    c.position.set(Math.cos(ang)*19.3, 6.8, Math.sin(ang)*19.3);
+    group.add(c);
+  }
+
+  // torch braziers ringing the inside of the wall, each with its own
+  // flickering point light
+  const poleMat = new THREE.MeshStandardMaterial({color:0x3a2e22, roughness:0.9});
+  const flameMat = new THREE.MeshBasicMaterial({color:0xff9a3c});
+  const torchLights = [];
+  const TORCHES = 8;
+  for(let i=0;i<TORCHES;i++){
+    const ang = (i/TORCHES)*Math.PI*2;
+    const x = Math.cos(ang)*16.3, z = Math.sin(ang)*16.3;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,3.4,6), poleMat);
+    pole.position.set(x,1.7,z);
+    group.add(pole);
+    const bowl = new THREE.Mesh(new THREE.ConeGeometry(0.42,0.5,8,1,true), poleMat);
+    bowl.rotation.x = Math.PI;
+    bowl.position.set(x,3.4,z);
+    group.add(bowl);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.26,0.6,8), flameMat);
+    flame.position.set(x,3.75,z);
+    group.add(flame);
+    const light = new THREE.PointLight(0xff9a3c, 1.1, 10, 2);
+    light.position.set(x,3.6,z);
+    group.add(light);
+    torchLights.push({light, flame, phase:i*1.7});
+  }
+
+  group.userData = {torchLights};
+  return group;
+}
+
+function ensureBattleArena3D(){
+  if(BATTLE3D){ startBattleArena3DLoop(); return; }
+  const canvas = $("battle-3d-canvas");
+  if(!canvas) return;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x14141c);
+  scene.fog = new THREE.Fog(0x14141c, 24, 46);
+
+  // the camera sits down inside the arena, roughly where a spectator in
+  // the front row would be, looking across the sand toward the far wall —
+  // this way it only ever sees the torch-lit INSIDE face of the wall, never
+  // the unlit outer face, which is what was reading as a band of flat black
+  // blocks instead of a continuous curved wall
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(0, 4, 10);
+  camera.lookAt(0, 3.5, -9);
+
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:false});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  if("outputColorSpace" in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+  scene.add(new THREE.HemisphereLight(0x8899bb, 0x3a2e1e, 1.0));
+  scene.add(new THREE.AmbientLight(0xfff3e0, 0.25));
+  const moodLight = new THREE.PointLight(0xffffff, 1.1, 45, 2);
+  moodLight.position.set(0, 11, 4);
+  scene.add(moodLight);
+
+  const coliseum = buildColiseumGroup();
+  scene.add(coliseum);
+
+  const resizeObs = new ResizeObserver(()=>resizeBattleArena3D());
+  resizeObs.observe(canvas.parentElement);
+
+  BATTLE3D = {scene, camera, renderer, coliseum, moodLight, resizeObs, raf:null, t:0};
+  resizeBattleArena3D();
+  startBattleArena3DLoop();
+}
+
+function resizeBattleArena3D(){
+  if(!BATTLE3D) return;
+  const canvas = $("battle-3d-canvas");
+  const w = canvas.parentElement.clientWidth||300, h = canvas.parentElement.clientHeight||150;
+  BATTLE3D.renderer.setSize(w,h,false);
+  BATTLE3D.camera.aspect = w/Math.max(1,h);
+  BATTLE3D.camera.updateProjectionMatrix();
+}
+
+// retints the arena's torchlight to roughly match the current clan's color
+// (the same color the old flat --battle-bg tint used), so each fight still
+// reads as visually distinct even though the coliseum itself is shared
+function updateBattleArena3DMood(hexColorStr){
+  if(!BATTLE3D || !hexColorStr) return;
+  BATTLE3D.moodLight.color.set(hexColorStr);
+}
+
+function startBattleArena3DLoop(){
+  if(!BATTLE3D || BATTLE3D.raf) return;
+  const tick = ()=>{
+    BATTLE3D.raf = requestAnimationFrame(tick);
+    BATTLE3D.t += 0.016;
+    // gentle torch flicker + a slow, barely-there camera drift so the
+    // backdrop reads as alive without competing with the 2D combat sprites
+    for(const tl of BATTLE3D.coliseum.userData.torchLights){
+      const flick = 0.85 + Math.sin(BATTLE3D.t*9 + tl.phase)*0.1 + Math.sin(BATTLE3D.t*23+tl.phase)*0.05;
+      tl.light.intensity = flick;
+      tl.flame.scale.setScalar(0.9+flick*0.18);
+    }
+    BATTLE3D.camera.position.x = Math.sin(BATTLE3D.t*0.08)*1.8;
+    BATTLE3D.camera.lookAt(0,3.5,-9);
+    BATTLE3D.renderer.render(BATTLE3D.scene, BATTLE3D.camera);
+  };
+  tick();
+}
+
+function pauseBattleArena3D(){
+  if(BATTLE3D && BATTLE3D.raf){ cancelAnimationFrame(BATTLE3D.raf); BATTLE3D.raf = null; }
+}
+
 /* ============== BATTLE SETUP ============== */
 function startBattle(key){
   const c = CLANS[key];
@@ -3248,6 +3398,7 @@ function renderBattle(fresh){
   const b = S.battle, c = CLANS[b.clanKey], h = S.hero;
 
   $("battle-arena").style.setProperty("--battle-bg", "color-mix(in srgb, "+c.color+" 14%, var(--panel))");
+  if(fresh) updateBattleArena3DMood(c.color);
   $("enemy-icon").innerHTML = CHAMPION_PORTRAITS[b.clanKey] || c.icon;
   $("enemy-icon").classList.add("portrait");
   $("enemy-icon").style.background = `color-mix(in srgb, ${c.color} 55%, var(--bg2))`;
