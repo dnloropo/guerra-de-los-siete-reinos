@@ -2504,7 +2504,7 @@ function buildWorld3D(){
     resizeObs:null, active:false, waterTextures,
     caveP3:{x:caveX, z:caveZ},
     camOrbit:0, // player-drag-controlled horizontal angle around the player, third-person orbit
-    velY:0, grounded:true, parkourPlatforms, chest, chestP3:{x:lastPlat.x, y:lastPlat.y, z:lastPlat.z}
+    velY:0, grounded:true, ridingPlatform:null, parkourPlatforms, chest, chestP3:{x:lastPlat.x, y:lastPlat.y, z:lastPlat.z}
   };
   const ro = new ResizeObserver(()=>resizeWorld3D());
   ro.observe(container);
@@ -2621,21 +2621,22 @@ function startAnimating3D(){
 
 function updateWorld3D(dt){
   // moving parkour platforms: slide back and forth along the course's
-  // perpendicular axis. If the player is currently standing on one, carry
-  // them along with it (add the platform's own delta to the player's
-  // position) so riding it doesn't quietly slide them off its edge — the
-  // player still has to time jumps to where a moving platform WILL be
+  // perpendicular axis. If the player landed on one (W3D.ridingPlatform,
+  // set by last frame's support check below), carry them along with it —
+  // using that stored reference instead of re-testing "am I still within
+  // its footprint right now" every frame, which used to occasionally miss
+  // by a hair (float drift, the walking bob, a slightly-off edge stance)
+  // and let the platform silently slide out from under a player who was
+  // just standing still
   if(W3D.parkourPlatforms){
     const tMove = performance.now()/1000;
     for(const p of W3D.parkourPlatforms){
       if(!p.moving) continue;
       const offset = Math.sin(tMove*p.moveSpeed + p.movePhase)*p.moveAmp;
       const newPx = p.baseX + p.perpX*offset, newPz = p.baseZ + p.perpZ*offset;
-      const dx = newPx - p.x, dz = newPz - p.z;
-      if(W3D.grounded && Math.abs(W3D.player.position.y-p.slabTop)<0.15 &&
-         Math.abs(W3D.player.position.x-p.x)<p.hx && Math.abs(W3D.player.position.z-p.z)<p.hz){
-        W3D.player.position.x += dx;
-        W3D.player.position.z += dz;
+      if(W3D.ridingPlatform === p){
+        W3D.player.position.x += newPx - p.x;
+        W3D.player.position.z += newPz - p.z;
       }
       p.x = newPx; p.z = newPz;
       if(p.mesh){ p.mesh.position.x = newPx; p.mesh.position.z = newPz; }
@@ -2672,19 +2673,36 @@ function updateWorld3D(dt){
     // looks mirrored/backwards relative to what's on screen
     vx = nx*Math.cos(W3D.camOrbit) + nz*Math.sin(W3D.camOrbit);
     vz = -nx*Math.sin(W3D.camOrbit) + nz*Math.cos(W3D.camOrbit);
-    // axis-separated collision against the solid body of each parkour
-    // platform: blocked only when the player's current height is below the
-    // platform's top (so walking/landing ON TOP, handled by the gravity
-    // support-check below, stays free) and above its underside — otherwise
-    // the player could just walk straight through a platform's side or belly
+    // collision against the solid body of each parkour platform: blocked
+    // only when the player's current height is below the platform's top (so
+    // walking/landing ON TOP, handled by the gravity support-check below,
+    // stays free) and above its underside — otherwise the player could just
+    // walk straight through a platform's side or belly. One single test
+    // (blockedAt) is reused for the diagonal move AND each per-axis
+    // fallback below, so there's no seam between slightly-different checks
+    // to snag or slip on
     const py = W3D.player.position.y;
     const blockedAt = (x,z)=> (W3D.parkourPlatforms||[]).some(p=>
       Math.abs(x-p.x)<p.hx+PLAYER_RADIUS && Math.abs(z-p.z)<p.hz+PLAYER_RADIUS && py<p.slabTop-0.05 && py>p.slabBottom-1.6
     );
-    const newX = clamp(W3D.player.position.x + vx*SPEED*dt, 1.5, WORLD_W3D-1.5);
-    if(!blockedAt(newX, W3D.player.position.z)) W3D.player.position.x = newX;
-    const newZ = clamp(W3D.player.position.z + vz*SPEED*dt, 1.5, WORLD_H3D-1.5);
-    if(!blockedAt(W3D.player.position.x, newZ)) W3D.player.position.z = newZ;
+    const curX = W3D.player.position.x, curZ = W3D.player.position.z;
+    const wantX = clamp(curX + vx*SPEED*dt, 1.5, WORLD_W3D-1.5);
+    const wantZ = clamp(curZ + vz*SPEED*dt, 1.5, WORLD_H3D-1.5);
+    if(!blockedAt(wantX, wantZ)){
+      // the full diagonal step is clear — take it outright, which avoids
+      // the classic axis-separated-collision glitch where moving straight
+      // at a corner can snag/vibrate because each axis is tested against
+      // the OTHER axis's not-yet-moved coordinate
+      W3D.player.position.x = wantX;
+      W3D.player.position.z = wantZ;
+    } else {
+      // actually blocked — slide along whichever single axis is still
+      // open, each tested against the player's current (unmoved) other
+      // coordinate, so you slide cleanly along the wall instead of
+      // stopping dead or jittering at the corner
+      if(!blockedAt(wantX, curZ)) W3D.player.position.x = wantX;
+      if(!blockedAt(W3D.player.position.x, wantZ)) W3D.player.position.z = wantZ;
+    }
 
     const targetFacing = Math.atan2(vx,vz);
     let diff = targetFacing - W3D.facing;
@@ -2707,7 +2725,7 @@ function updateWorld3D(dt){
   W3D.velY -= GRAVITY*dt;
   const prevY = W3D.player.position.y;
   let nextY = prevY + W3D.velY*dt;
-  let supportY = 0;
+  let supportY = 0, supportPlatform = null;
   // a ceiling check: if the player is jumping up (or carried up by a moving
   // platform) from below a platform's underside, stop them at the underside
   // instead of letting a big enough vertical step pop them straight through
@@ -2717,7 +2735,7 @@ function updateWorld3D(dt){
   if(W3D.parkourPlatforms){
     for(const p of W3D.parkourPlatforms){
       if(Math.abs(W3D.player.position.x-p.x)<p.hx && Math.abs(W3D.player.position.z-p.z)<p.hz &&
-         prevY < p.slabBottom-0.05 && p.slabBottom < ceilingY){
+         prevY < p.slabBottom-0.08 && p.slabBottom < ceilingY){
         ceilingY = p.slabBottom;
       }
     }
@@ -2725,13 +2743,17 @@ function updateWorld3D(dt){
   if(nextY > ceilingY){ nextY = ceilingY; if(W3D.velY > 0) W3D.velY = 0; }
   if(W3D.parkourPlatforms){
     for(const p of W3D.parkourPlatforms){
-      if(Math.abs(W3D.player.position.x-p.x)<p.hx && Math.abs(W3D.player.position.z-p.z)<p.hz && p.y<=prevY+0.1 && p.y>supportY){
-        supportY = p.y;
+      if(Math.abs(W3D.player.position.x-p.x)<p.hx && Math.abs(W3D.player.position.z-p.z)<p.hz && p.y<=prevY+0.12 && p.y>supportY){
+        supportY = p.y; supportPlatform = p;
       }
     }
   }
   if(nextY<=supportY){ nextY = supportY; W3D.velY = 0; W3D.grounded = true; }
   else W3D.grounded = false;
+  // remember what the player is actually standing on (null = plain ground),
+  // so next frame's moving-platform pass above can carry them reliably
+  // instead of re-testing "am I still on it" from scratch every tick
+  W3D.ridingPlatform = W3D.grounded ? supportPlatform : null;
   // a small cosmetic bob while walking on solid ground, only while the
   // placeholder model (no animation mixer) is in use
   const bob = (moving && W3D.grounded && !W3D.anim) ? Math.abs(Math.sin(performance.now()*0.012))*0.12 : 0;
