@@ -157,6 +157,31 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
 .compass-dial{fill:color-mix(in srgb, var(--bg2) 82%, transparent); stroke:var(--line); stroke-width:1.5;}
 .compass-label{font-size:11px; font-weight:700; fill:var(--ink-dim); text-anchor:middle; font-family:inherit;}
 @media (max-width:520px){ #compass{width:54px; height:54px;} }
+#quests-btn{
+  position:absolute; right:14px; top:90px; z-index:6;
+  width:40px; height:40px; border-radius:10px; font-size:17px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--bg2) 82%, transparent); backdrop-filter:blur(2px);
+  border:1px solid var(--line);
+}
+#quests-btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+#quests-overlay{
+  position:absolute; right:14px; top:140px; z-index:6;
+  width:236px; max-height:min(60vh,360px); overflow-y:auto;
+  background:color-mix(in srgb, var(--bg2) 92%, transparent);
+  border:1px solid var(--line); border-radius:10px; padding:10px 11px 9px;
+  backdrop-filter:blur(4px); opacity:0; transform:translateY(-6px) scale(.97);
+  pointer-events:none; transition:opacity .18s ease, transform .18s ease;
+}
+#quests-overlay.open{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
+#quests-overlay h4{margin:0 0 7px; font-size:11px; color:var(--ink-dim); font-weight:600; text-transform:uppercase; letter-spacing:.05em;}
+.quest-row{display:flex; align-items:center; gap:8px; font-size:12.5px; padding:4px 0; color:var(--ink); line-height:1.25;}
+.quest-row.done{color:var(--ink-dim);}
+.quest-row.done .quest-text{text-decoration:line-through;}
+.quest-check{width:16px; height:16px; border-radius:4px; border:1.5px solid var(--line); flex:none; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700;}
+.quest-check.done{background:var(--good); border-color:var(--good); color:#fff;}
+.quest-done-banner{margin-top:8px; padding-top:7px; border-top:1px solid var(--line); font-size:11.5px; color:var(--good); font-weight:600; text-align:center;}
+@media (max-width:520px){ #quests-btn{top:84px;} #quests-overlay{width:198px; top:128px;} }
 #chest-btn{
   position:absolute; left:50%; bottom:76px; z-index:5;
   transform:translateX(-50%) translateY(8px);
@@ -460,6 +485,11 @@ footer.hint{
             <polygon points="0,-17 4.5,4 0,0.5 -4.5,4" fill="var(--accent)" stroke="#fff" stroke-width="1"></polygon>
           </g>
         </svg>
+      </div>
+      <button id="quests-btn" aria-label="Mostrar misiones" title="Misiones">📜</button>
+      <div id="quests-overlay">
+        <h4>Misiones</h4>
+        <div id="quests-list"></div>
       </div>
       <button id="chest-btn" aria-label="Abrir el cofre">✨ Abrir el cofre</button>
       <div id="map-tip">Acércate a un territorio para ver quién lo custodia.</div>
@@ -903,6 +933,7 @@ function renderHUD(){
     <div class="realms">${dots}</div>
   `;
   hud.forEach(el=>el.innerHTML = html);
+  if(questsOpen) renderQuestsList();
 }
 
 /* ============== MINIMAP (2D top-down schematic overlay) ============== */
@@ -966,6 +997,38 @@ function toggleMinimap(){
   $("minimap-btn").classList.toggle("active", minimapOpen);
   $("minimap-overlay").classList.toggle("open", minimapOpen);
   if(minimapOpen) renderMinimapStatic();
+}
+
+/* ============== QUEST LIST (checklist of everything required to win) ============== */
+let questsOpen = false;
+function renderQuestsList(){
+  const el = $("quests-list");
+  if(!el) return;
+  const rows = CLAN_ORDER.map(k=>{
+    const done = S.conquered.includes(k);
+    return `<div class="quest-row ${done?'done':''}">
+      <span class="quest-check ${done?'done':''}">${done?'✓':''}</span>
+      <span class="quest-text">Derrotar a ${CLANS[k].name}</span>
+    </div>`;
+  });
+  const caveDone = S.conquered.includes("cueva");
+  rows.push(`<div class="quest-row ${caveDone?'done':''}">
+    <span class="quest-check ${caveDone?'done':''}">${caveDone?'✓':''}</span>
+    <span class="quest-text">Derrotar a la Cueva HSE</span>
+  </div>`);
+  const chestDone = !!S.chestOpened;
+  rows.push(`<div class="quest-row ${chestDone?'done':''}">
+    <span class="quest-check ${chestDone?'done':''}">${chestDone?'✓':''}</span>
+    <span class="quest-text">Completar el parkour y abrir el cofre</span>
+  </div>`);
+  const allDone = CLAN_ORDER.every(k=>S.conquered.includes(k)) && caveDone && chestDone;
+  el.innerHTML = rows.join("") + (allDone ? `<div class="quest-done-banner">✨ ¡Todo listo para terminar la guerra!</div>` : "");
+}
+function toggleQuests(){
+  questsOpen = !questsOpen;
+  $("quests-btn").classList.toggle("active", questsOpen);
+  $("quests-overlay").classList.toggle("open", questsOpen);
+  if(questsOpen) renderQuestsList();
 }
 function updateCompass(){
   const needle = $("compass-needle");
@@ -2862,8 +2925,11 @@ function updateWorld3D(dt){
       : `<b>${c.name}</b> · Campeón: <b>${c.champ}</b> — ${c.desc}`);
   } else {
     const allRealmsWon = realmsConqueredCount() === CLAN_ORDER.length;
-    updateMapTip(allRealmsWon && !S.conquered.includes("cueva")
-      ? "Los seis reinos están unidos. Solo falta la <b>Cueva HSE</b> para terminar la guerra."
+    const missing = [];
+    if(allRealmsWon && !S.conquered.includes("cueva")) missing.push("la <b>Cueva HSE</b>");
+    if(allRealmsWon && !S.chestOpened) missing.push("el <b>cofre del parkour</b>");
+    updateMapTip(missing.length
+      ? `Los seis reinos están unidos. Falta ${missing.join(" y ")} para terminar la guerra. Revisa 📜 <b>Misiones</b> para el detalle.`
       : "Camina con las flechas / WASD. Entra al territorio de un clan para retarlo.");
   }
 
@@ -2909,6 +2975,15 @@ function openChest(){
   lastZoneTip = ""; // force the message through even if it repeats the current tip text
   updateMapTip("✨ <b>¡Cofre abierto!</b> Encuentras una reliquia olvidada — tu vida máxima aumenta para siempre.");
   saveSnapshot();
+  // winning requires every one of the six realms, the Cueva HSE, AND this
+  // chest — if the other two were already done, opening it is the very
+  // last requirement, so trigger the victory sequence once the
+  // congratulatory message above has had a moment on screen
+  if(realmsConqueredCount() === CLAN_ORDER.length && S.conquered.includes("cueva")){
+    setTimeout(()=>{
+      if(S.screen==="map") startDialogue("epilogue", showVictory, "Toca para continuar ▸");
+    }, 1600);
+  }
 }
 
 function enterTerritory(key){
@@ -3390,9 +3465,9 @@ function winBattle(){
   $("enemy-sprite").classList.remove("idle");
   $("enemy-sprite").classList.add("collapse");
   setTimeout(()=>{
-    // winning requires every one of the six realms AND the Cueva HSE —
-    // the cave is no longer a purely optional side encounter, per user request
-    if(realmsConqueredCount() === CLAN_ORDER.length && S.conquered.includes("cueva")){
+    // winning requires every one of the six realms, the Cueva HSE, AND the
+    // parkour chest — none of the three are purely optional, per user request
+    if(realmsConqueredCount() === CLAN_ORDER.length && S.conquered.includes("cueva") && S.chestOpened){
       S.battle = null;
       startDialogue("epilogue", showVictory, "Toca para continuar ▸");
     } else {
@@ -4186,6 +4261,7 @@ document.querySelectorAll("#dpad button[data-dir]").forEach(btn=>{
 })();
 
 $("minimap-btn").addEventListener("click", toggleMinimap);
+$("quests-btn").addEventListener("click", toggleQuests);
 $("chest-btn").addEventListener("click", openChest);
 
 /* ============== HOT RELOAD / SNAPSHOT ============== */
