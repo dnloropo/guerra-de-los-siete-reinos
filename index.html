@@ -693,7 +693,14 @@ const CLANS = {
   cueva:{ name:"Cueva HSE", champ:"Curandera Alejandra", color:"#4a4336", colorDark:"#6e6558", icon:"🧙‍♀️",
     desc:"Hierbas, cantos y humo de copal. Una curandera guarda la cueva y domina la magia ancestral de la montaña.",
     special:{name:"Brebaje Maldito", cost:20, desc:"Daño alto + probabilidad de aturdir", kind:"stun_dmg"},
-    hp:95, atk:14, def:7 }
+    hp:95, atk:14, def:7 },
+  // another standalone optional encounter, out in the open northwest of the
+  // home castle — not one of the six rival realms either, so it's never
+  // counted toward realmsConqueredCount() or the CLAN_ORDER win condition
+  luis:{ name:"Troll Luis", champ:"Troll Luis", color:"#3a4428", colorDark:"#7c8a5c", icon:"👹",
+    desc:"Un troll desterrado de los seis reinos. Nadie lo quiere cerca... y él tampoco quiere compañía.",
+    special:{name:"Garrotazo del Desterrado", cost:18, desc:"Daño alto + probabilidad de aturdir", kind:"stun_dmg"},
+    hp:80, atk:12, def:6 }
 };
 const CLAN_ORDER = ["turing","tesla","gosling","vanrossum","nakamoto","ubuntu"];
 
@@ -732,6 +739,11 @@ const DIALOGUES = {
   cueva:[
     {who:"enemy", text:"Entre estas rocas cultivo lo que cura y lo que enferma. Nadie cruza sin probar un poco de ambos."},
     {who:"hero", text:"No busco pelea con quien solo defiende su hogar. Pero tampoco voy a retroceder."}
+  ],
+  luis:[
+    {who:"enemy", text:"Fui desterrado de los seis reinos. Ya ninguno me quiere cerca... así que aquí me quedo, solo con mi garrote y mis recuerdos."},
+    {who:"hero", text:"Nadie te destierra sin motivo. ¿Qué hiciste para que los seis clanes te dieran la espalda?"},
+    {who:"enemy", text:"¡Eso no te incumbe, forjador! Y ahora vas a pagar por hacerme recordarlo."}
   ],
   epilogue:[
     {who:"narrator", text:"Uno a uno, los seis clanes bajan las armas. Donde hubo fronteras cerradas, ahora hay caminos abiertos entre ellas."},
@@ -846,6 +858,23 @@ const CHAMPION_PORTRAITS = {
     <g fill="#d9c27a"><circle cx="38" cy="70" r="2"/><circle cx="46" cy="74" r="2"/><circle cx="54" cy="74" r="2"/><circle cx="62" cy="70" r="2"/></g>
     <g transform="translate(82 58) rotate(14)"><rect x="-2.2" y="-4" width="4.4" height="34" rx="2" fill="#6b4a2e"/><circle cx="0" cy="-10" r="7" fill="#7c9e55"/><circle cx="-4" cy="-14" r="3" fill="#8fb565"/><circle cx="4" cy="-15" r="3" fill="#8fb565"/><circle cx="0" cy="-18" r="3" fill="#9fc877"/></g>
     <path d="M16 74 Q14 84 22 88 L24 80 Z" fill="#6b4a2e"/>
+  </svg>`,
+  luis: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <path d="M50 14 C24 14 14 40 14 62 L14 92 L86 92 L86 62 C86 40 76 14 50 14 Z" fill="#5f6b4a"/>
+    <path d="M50 14 C30 14 22 40 22 62 L22 86 L78 86 L78 62 C78 40 70 14 50 14 Z" fill="#434f32"/>
+    <g fill="#5a5142"><circle cx="18" cy="38" r="8"/><circle cx="82" cy="38" r="8"/></g>
+    <ellipse cx="50" cy="56" rx="19" ry="20" fill="#7c8a5c"/>
+    <path d="M28 44 Q50 28 72 44 Q70 52 58 48 Q50 40 42 48 Q30 52 28 44 Z" fill="#3a4428"/>
+    <rect x="37" y="52" width="10" height="7" rx="2" fill="#1a200e" style="filter:drop-shadow(0 0 3px #9fdb5a)"/>
+    <rect x="53" y="52" width="10" height="7" rx="2" fill="#1a200e" style="filter:drop-shadow(0 0 3px #9fdb5a)"/>
+    <path d="M44 46 L58 54" stroke="#2e3620" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M34 68 Q50 80 66 68 Q62 76 50 78 Q38 76 34 68 Z" fill="#1a200e"/>
+    <path d="M40 70 L36 82 L44 72 Z" fill="#e8e2cf"/>
+    <path d="M60 70 L64 82 L56 72 Z" fill="#e8e2cf"/>
+    <ellipse cx="24" cy="68" rx="7" ry="4.5" fill="#6b8f4a" opacity=".85"/>
+    <ellipse cx="76" cy="68" rx="7" ry="4.5" fill="#6b8f4a" opacity=".85"/>
+    <path d="M30 86 Q50 94 70 86 L68 92 L32 92 Z" fill="#5a5142"/>
+    <g transform="translate(84 60) rotate(22)"><rect x="-4" y="-4" width="8" height="32" rx="3" fill="#4a3b26"/><ellipse cx="0" cy="-10" rx="10" ry="8" fill="#5c4a30"/><circle cx="-4" cy="-13" r="2" fill="#3a2e1c"/><circle cx="3" cy="-8" r="2" fill="#3a2e1c"/></g>
   </svg>`
 };
 
@@ -1044,9 +1073,9 @@ const ZONE_RADIUS_3D = ZONE_RADIUS*SCALE3D, TRIGGER_RADIUS_3D = TRIGGER_RADIUS*S
 // the cave healer's encounter radius is its own, smaller than a castle's —
 // the cave itself is a much smaller landmark than a castle's walled territory
 const CAVE_ZONE_RADIUS_3D = 14, CAVE_TRIGGER_RADIUS_3D = 10;
-// Troll Luis never fights — he just has a line of dialogue when you walk up,
-// so he only needs a "zone" radius for the map-tip, no trigger radius
-const LUIS_ZONE_RADIUS_3D = 10;
+// Troll Luis: a smaller, closer-in optional encounter than a castle,
+// same zone/trigger split as the cave healer above
+const LUIS_ZONE_RADIUS_3D = 10, LUIS_TRIGGER_RADIUS_3D = 7;
 function toWorld3D(pos){ return {x:pos.x*SCALE3D, z:pos.y*SCALE3D}; }
 
 let W3D = null;             // {renderer,scene,camera,player,castles,clock,raf,resizeObs}
@@ -3046,7 +3075,10 @@ function updateWorld3D(dt){
       ? `<b>${c.name} — despejada.</b> La ${c.champ} ya no ronda la cueva.`
       : `<b>${c.name}</b> · Enemigo: <b>${c.champ}</b> — ${c.desc}`);
   } else if(nearLuis){
-    updateMapTip("👹 <b>Troll Luis</b> — \"Fui desterrado de los seis reinos. Ya ninguno me quiere cerca... así que aquí me quedo, solo con mi garrote y mis recuerdos.\"");
+    const c = CLANS.luis, won = S.conquered.includes("luis");
+    updateMapTip(won
+      ? `<b>${c.name} — derrotado.</b> Ya no amenaza a los siete reinos... por ahora.`
+      : `<b>${c.name}</b> · ${c.champ} — ${c.desc}`);
   } else if(nearest && nearestDist < ZONE_RADIUS_3D+5){
     const c = CLANS[nearest], won = S.conquered.includes(nearest);
     updateMapTip(won
@@ -3066,6 +3098,9 @@ function updateWorld3D(dt){
   if(!S.conquered.includes("cueva") && caveDist < CAVE_TRIGGER_RADIUS_3D){
     W3D.triggerCooldown = 1;
     enterTerritory("cueva");
+  } else if(!S.conquered.includes("luis") && luisDist < LUIS_TRIGGER_RADIUS_3D){
+    W3D.triggerCooldown = 1;
+    enterTerritory("luis");
   } else if(nearest && !S.conquered.includes(nearest) && nearestDist < TRIGGER_RADIUS_3D){
     W3D.triggerCooldown = 1;
     enterTerritory(nearest);
@@ -3186,7 +3221,9 @@ function startBattle(key){
     },
     log:[key==="cueva"
       ? `Entras a la ${c.name}. Una ${c.champ} murmura un conjuro desde la oscuridad y te bloquea el paso.`
-      : `Entras al territorio de ${c.name}. ${c.champ} bloquea tu paso.`],
+      : key==="luis"
+        ? `Te acercas a ${c.champ}. "¿Vienes a burlarte también?", gruñe, levantando su garrote.`
+        : `Entras al territorio de ${c.name}. ${c.champ} bloquea tu paso.`],
     turn:"player",
     locked:false
   };
@@ -3582,7 +3619,9 @@ function winBattle(){
   b.over = true; b.locked = true;
   log(b.clanKey==="cueva"
     ? `¡Has derrotado a la ${c.champ}! La cueva vuelve a estar tranquila.`
-    : `¡Has derrotado a ${c.champ}! El territorio de ${c.name} se alía contigo.`);
+    : b.clanKey==="luis"
+      ? `¡Has derrotado a ${c.champ}! Antes de huir cojeando grita: "¡Esto no termina aquí! ¡Algún día tumbaré las plataformas de los siete reinos!"`
+      : `¡Has derrotado a ${c.champ}! El territorio de ${c.name} se alía contigo.`);
   if(!S.conquered.includes(b.clanKey)) S.conquered.push(b.clanKey);
   S.hero.level++;
   S.hero.hpMax += 14; S.hero.hp = S.hero.hpMax;
