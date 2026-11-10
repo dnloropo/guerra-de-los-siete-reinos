@@ -174,22 +174,88 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
   flex:1; min-height:70px; display:flex; align-items:flex-end; justify-content:space-between;
   padding:4px 10px 10px; position:relative;
 }
-.stage-fighter{display:flex; flex-direction:column; align-items:center; gap:4px;}
+.stage-fighter{display:flex; flex-direction:column; align-items:center; gap:4px; position:relative;}
 .stage-shadow{width:70%; height:10px; border-radius:50%; background:rgba(0,0,0,.22); filter:blur(1px);}
 .stage-sprite{
   width:min(149px, 32vw); height:min(149px, 32vw); filter:drop-shadow(0 6px 10px rgba(0,0,0,.28));
+  position:relative; --glow-color:#ffffff;
 }
 .stage-sprite svg{width:100%; height:100%; display:block;}
 .stage-enemy .stage-sprite{width:min(194px, 41.5vw); height:min(194px, 41.5vw);}
 .stage-enemy .stage-sprite svg{transform:scaleX(-1);}
+@keyframes idleBreathe{
+  0%,100%{transform:translateY(0) scale(1);} 50%{transform:translateY(-3px) scale(1.018);}
+}
+.stage-sprite.idle{animation:idleBreathe 2.6s ease-in-out infinite;}
 @keyframes atkRight{
-  0%{transform:translateX(0);} 40%{transform:translateX(28px) scale(1.08);} 100%{transform:translateX(0);}
+  0%{transform:translateX(0);} 40%{transform:translateX(28px) scale(1.1) rotate(-4deg);} 100%{transform:translateX(0);}
 }
 @keyframes atkLeft{
-  0%{transform:translateX(0);} 40%{transform:translateX(-28px) scale(1.08);} 100%{transform:translateX(0);}
+  0%{transform:translateX(0);} 40%{transform:translateX(-28px) scale(1.1) rotate(4deg);} 100%{transform:translateX(0);}
 }
 .atk-right{animation:atkRight .45s ease;}
 .atk-left{animation:atkLeft .45s ease;}
+@keyframes chargeGlow{
+  0%{filter:drop-shadow(0 6px 10px rgba(0,0,0,.28)) brightness(1);}
+  50%{filter:drop-shadow(0 0 16px var(--glow-color)) brightness(1.55) saturate(1.3);}
+  100%{filter:drop-shadow(0 6px 10px rgba(0,0,0,.28)) brightness(1);}
+}
+.charge{animation:chargeGlow .6s ease;}
+@keyframes collapseDown{
+  0%{opacity:1; transform:translateY(0) rotate(0deg);}
+  100%{opacity:0; transform:translateY(20px) rotate(14deg); filter:grayscale(1) brightness(.55);}
+}
+.collapse{animation:collapseDown .85s ease forwards;}
+@keyframes arenaShake{
+  10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);}
+  30%,50%,70%{transform:translateX(-4px);} 40%,60%{transform:translateX(4px);}
+}
+.arena-shake{animation:arenaShake .5s ease;}
+
+/* impact slash + sparks, spawned dynamically on hit */
+.impact-slash{
+  position:absolute; width:85%; height:85%; left:50%; top:45%; pointer-events:none; z-index:6;
+  transform:translate(-50%,-50%); opacity:0;
+}
+@keyframes slashPop{
+  0%{opacity:0; transform:translate(-50%,-50%) rotate(-25deg) scale(.35);}
+  22%{opacity:1; transform:translate(-50%,-50%) rotate(-12deg) scale(1.05);}
+  60%{opacity:.85;}
+  100%{opacity:0; transform:translate(-50%,-50%) rotate(0deg) scale(1.3);}
+}
+.impact-slash.show{animation:slashPop .42s ease forwards;}
+.impact-slash svg{width:100%; height:100%; display:block;}
+.spark{
+  position:absolute; width:6px; height:6px; border-radius:50%; left:50%; top:46%;
+  pointer-events:none; z-index:6; box-shadow:0 0 6px 1px currentColor;
+}
+@keyframes sparkFly{
+  0%{opacity:1; transform:translate(-50%,-50%) translate(0,0) scale(1);}
+  100%{opacity:0; transform:translate(-50%,-50%) translate(var(--sx),var(--sy)) scale(.3);}
+}
+.spark.fly{animation:sparkFly .5s ease-out forwards;}
+
+/* soft aura ring + rising motes, spawned for heals/buffs/status (non-damage) */
+.aura-ring{
+  position:absolute; left:50%; top:48%; width:65%; height:65%; border-radius:50%;
+  border:3px solid; transform:translate(-50%,-50%) scale(.3); opacity:0; pointer-events:none; z-index:6;
+}
+@keyframes auraPulse{
+  0%{opacity:0; transform:translate(-50%,-50%) scale(.3);}
+  40%{opacity:.75;}
+  100%{opacity:0; transform:translate(-50%,-50%) scale(1.5);}
+}
+.aura-ring.show{animation:auraPulse .6s ease forwards;}
+.mote{
+  position:absolute; width:5px; height:5px; border-radius:50%; left:50%; top:66%;
+  pointer-events:none; z-index:6;
+}
+@keyframes moteRise{
+  0%{opacity:1; transform:translate(-50%,-50%) translateY(0);}
+  100%{opacity:0; transform:translate(-50%,-50%) translateY(-46px);}
+}
+.mote.rise{animation:moteRise .9s ease-out forwards;}
+
 @media (max-width:520px){ #battle-stage{min-height:54px;} }
 
 #battle-log{
@@ -229,10 +295,14 @@ button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); 
 .dmg-pop{
   position:absolute; font-family:var(--font-mono); font-weight:700; font-size:18px;
   color:var(--bad); pointer-events:none; animation:popnum .9s ease forwards; text-shadow:0 1px 3px rgba(0,0,0,.4);
+  white-space:nowrap;
 }
 .dmg-pop.heal{color:var(--good);}
+.dmg-pop.crit{font-size:27px; color:#ffb020; text-shadow:0 0 10px rgba(255,170,30,.85),0 1px 3px rgba(0,0,0,.5);}
+.dmg-pop.crit::after{content:"¡CRÍTICO!"; display:block; font-size:10px; text-align:center; letter-spacing:.04em;}
 @media (prefers-reduced-motion:reduce){
-  .shake,.flash,.dmg-pop,.atk-right,.atk-left{animation:none!important;}
+  .shake,.flash,.dmg-pop,.atk-right,.atk-left,.charge,.collapse,.arena-shake,
+  .impact-slash.show,.spark.fly,.aura-ring.show,.mote.rise,.stage-sprite.idle{animation:none!important;}
 }
 
 /* ---------- END SCREENS ---------- */
@@ -489,10 +559,11 @@ const CHAMPION_PORTRAITS = {
     <path d="M50 14 C30 14 22 34 22 56 L22 86 L78 86 L78 56 C78 34 70 14 50 14 Z" fill="#1d2a4d"/>
     <ellipse cx="50" cy="52" rx="15" ry="17" fill="#d9b48a"/>
     <path d="M38 46 Q50 36 62 46 Q62 30 50 26 Q38 30 38 46 Z" fill="#101a33"/>
-    <rect x="41" y="50" width="18" height="7" rx="3.5" fill="#4ad8e8"/>
+    <rect x="41" y="50" width="18" height="7" rx="3.5" fill="#4ad8e8" style="filter:drop-shadow(0 0 3px #4ad8e8)"/>
     <circle cx="46" cy="53.5" r="1.6" fill="#0a2430"/>
     <circle cx="54" cy="53.5" r="1.6" fill="#0a2430"/>
     <g transform="translate(50 80)"><rect x="-5" y="-3" width="10" height="10" rx="2" fill="#4a63a8"/><circle cx="0" cy="-3" r="4.5" fill="none" stroke="#4a63a8" stroke-width="3"/></g>
+    <g transform="translate(78 64) rotate(32)"><rect x="-2" y="-24" width="4" height="30" rx="2" fill="#c9a0e0"/><path d="M-2 -24 L0 -32 L2 -24 Z" fill="#e8d8f5"/></g>
   </svg>`,
   tesla: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <path d="M50 92 L30 55 L50 92 L22 46 L50 90 L16 40 Z" fill="#f0d23a"/>
@@ -501,9 +572,10 @@ const CHAMPION_PORTRAITS = {
     <ellipse cx="50" cy="50" rx="15" ry="16" fill="#d9b48a"/>
     <path d="M30 40 L24 18 L42 30 Z" fill="#2b1540"/>
     <path d="M70 40 L76 18 L58 30 Z" fill="#2b1540"/>
-    <path d="M44 24 L38 36 L46 36 L40 48 L58 32 L49 32 Z" fill="#f0d23a"/>
+    <path d="M44 24 L38 36 L46 36 L40 48 L58 32 L49 32 Z" fill="#f0d23a" style="filter:drop-shadow(0 0 4px #f0d23a)"/>
     <circle cx="44" cy="52" r="2" fill="#2b1540"/>
     <circle cx="56" cy="52" r="2" fill="#2b1540"/>
+    <g transform="translate(88 70) rotate(-12) scale(0.6)"><path d="M0 -16 L-5 0 L1 0 L-3 16 L8 -4 L2 -4 Z" fill="#f0d23a" opacity=".92" style="filter:drop-shadow(0 0 2px #f0d23a)"/></g>
   </svg>`,
   gosling: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <path d="M50 28 C30 28 22 44 22 60 L22 90 L78 90 L78 60 C78 44 70 28 50 28 Z" fill="#6b4423"/>
@@ -518,6 +590,11 @@ const CHAMPION_PORTRAITS = {
       <path d="M-7 -2 Q0 -8 7 -2" fill="none" stroke="#f5efe0" stroke-width="3"/>
       <path d="M8 1 q6 1 4 6 q-2 3 -6 2" fill="none" stroke="#3f7d4f" stroke-width="2"/>
     </g>
+    <g stroke="#cfead9" stroke-width="2" fill="none" stroke-linecap="round" opacity=".85">
+      <path d="M46 60 q-3 -5 0 -9 q3 -4 0 -9"/>
+      <path d="M54 60 q3 -5 0 -9 q-3 -4 0 -9"/>
+    </g>
+    <path d="M24 70 q6 -8 13 -2 q-2 7 -9 8 q-6 1 -4 -6 Z" fill="#3f7d4f" opacity=".85"/>
   </svg>`,
   vanrossum: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <path d="M50 26 C30 26 20 42 20 60 L20 90 L80 90 L80 60 C80 42 70 26 50 26 Z" fill="#1f5c3a"/>
@@ -526,25 +603,27 @@ const CHAMPION_PORTRAITS = {
     <circle cx="45" cy="50" r="1.8" fill="#123a24"/>
     <circle cx="55" cy="50" r="1.8" fill="#123a24"/>
     <path d="M18 58 C26 46 34 50 40 58 C46 66 38 72 30 70 C22 68 14 66 18 58 Z" fill="#2f8f58"/>
-    <circle cx="20" cy="60" r="2.4" fill="#f0e23a"/>
+    <circle cx="20" cy="60" r="2.4" fill="#f0e23a" style="filter:drop-shadow(0 0 3px #f0e23a)"/>
     <path d="M78 60 C70 48 62 52 58 60 C54 68 62 74 70 72 C78 70 82 66 78 60 Z" fill="#2f8f58"/>
-    <circle cx="76" cy="62" r="2.4" fill="#f0e23a"/>
+    <circle cx="76" cy="62" r="2.4" fill="#f0e23a" style="filter:drop-shadow(0 0 3px #f0e23a)"/>
+    <g transform="translate(14 74) rotate(8)"><rect x="-2" y="-30" width="4" height="40" rx="2" fill="#2f5c3a"/><circle cx="0" cy="-30" r="6" fill="none" stroke="#2f8f58" stroke-width="3"/></g>
   </svg>`,
   nakamoto: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <path d="M50 10 C28 10 18 32 18 54 L18 92 L82 92 L82 54 C82 32 72 10 50 10 Z" fill="#17140a"/>
     <path d="M50 10 C28 10 18 32 18 54 L18 92 L82 92 L82 54 C82 32 72 10 50 10 Z" fill="none" stroke="#c9a63f" stroke-width="2.5"/>
     <ellipse cx="50" cy="50" rx="14" ry="15" fill="#2a2416"/>
-    <rect x="38" y="47" width="10" height="4" rx="2" fill="#f3d978"/>
-    <rect x="52" y="47" width="10" height="4" rx="2" fill="#f3d978"/>
+    <rect x="38" y="47" width="10" height="4" rx="2" fill="#f3d978" style="filter:drop-shadow(0 0 3px #f3d978)"/>
+    <rect x="52" y="47" width="10" height="4" rx="2" fill="#f3d978" style="filter:drop-shadow(0 0 3px #f3d978)"/>
     <g transform="translate(50 76)">
       <circle r="11" fill="none" stroke="#c9a63f" stroke-width="3"/>
       <circle r="4" fill="#c9a63f"/>
       <rect x="-1.5" y="-11" width="3" height="6" fill="#c9a63f"/>
       <rect x="-1.5" y="5" width="3" height="6" fill="#c9a63f"/>
     </g>
+    <g transform="translate(80 56) rotate(20)"><circle cx="0" cy="-14" r="5" fill="none" stroke="#c9a63f" stroke-width="3"/><rect x="-2" y="-9" width="4" height="20" fill="#c9a63f"/><rect x="-2" y="9" width="8" height="3" fill="#c9a63f"/></g>
   </svg>`,
   ubuntu: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <g transform="translate(50 50)">
+    <g transform="translate(50 50)" style="filter:drop-shadow(0 0 4px #d96b3a)">
       <circle r="42" fill="none" stroke="#d96b3a" stroke-width="3"/>
       <g stroke="#d96b3a" stroke-width="3">
         <line x1="0" y1="-42" x2="0" y2="-50"/><line x1="0" y1="42" x2="0" y2="50"/>
@@ -559,6 +638,7 @@ const CHAMPION_PORTRAITS = {
     <circle cx="45" cy="48" r="1.8" fill="#201208"/>
     <circle cx="55" cy="48" r="1.8" fill="#201208"/>
     <path d="M45 56 Q50 59 55 56" stroke="#201208" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <g transform="translate(18 72) rotate(-6)"><rect x="-2" y="-28" width="4" height="40" rx="2" fill="#7a4a28"/><circle cx="0" cy="-28" r="5" fill="#d96b3a"/></g>
   </svg>`,
   cueva: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <path d="M50 14 C24 14 14 40 14 62 L14 92 L86 92 L86 62 C86 40 76 14 50 14 Z" fill="#5f6b4a"/>
@@ -566,11 +646,14 @@ const CHAMPION_PORTRAITS = {
     <g fill="#5a5142"><circle cx="18" cy="38" r="8"/><circle cx="82" cy="38" r="8"/></g>
     <ellipse cx="50" cy="56" rx="19" ry="20" fill="#7c8a5c"/>
     <path d="M28 44 Q50 28 72 44 Q70 52 58 48 Q50 40 42 48 Q30 52 28 44 Z" fill="#3a4428"/>
-    <rect x="37" y="52" width="10" height="7" rx="2" fill="#1a200e"/>
-    <rect x="53" y="52" width="10" height="7" rx="2" fill="#1a200e"/>
+    <rect x="37" y="52" width="10" height="7" rx="2" fill="#1a200e" style="filter:drop-shadow(0 0 3px #9fdb5a)"/>
+    <rect x="53" y="52" width="10" height="7" rx="2" fill="#1a200e" style="filter:drop-shadow(0 0 3px #9fdb5a)"/>
     <path d="M34 68 Q50 80 66 68 Q62 76 50 78 Q38 76 34 68 Z" fill="#1a200e"/>
     <path d="M40 70 L36 82 L44 72 Z" fill="#e8e2cf"/>
     <path d="M60 70 L64 82 L56 72 Z" fill="#e8e2cf"/>
+    <ellipse cx="24" cy="68" rx="7" ry="4.5" fill="#6b8f4a" opacity=".85"/>
+    <ellipse cx="76" cy="68" rx="7" ry="4.5" fill="#6b8f4a" opacity=".85"/>
+    <g transform="translate(84 60) rotate(22)"><rect x="-4" y="-4" width="8" height="32" rx="3" fill="#4a3b26"/><ellipse cx="0" cy="-10" rx="10" ry="8" fill="#5c4a30"/><circle cx="-4" cy="-13" r="2" fill="#3a2e1c"/><circle cx="3" cy="-8" r="2" fill="#3a2e1c"/></g>
   </svg>`
 };
 
@@ -586,10 +669,12 @@ const HERO_PORTRAIT = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/
   <circle cx="55" cy="46" r="1.8" fill="#2a1a0c"/>
   <path d="M43 52 Q50 56 57 52" stroke="#2a1a0c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
   <path d="M36 62 L64 62 L60 88 L40 88 Z" fill="#6b4a30"/>
+  <path d="M44 68 h12 l-2 5 h-8 Z" fill="#2a1a0c" opacity=".55"/>
   <g transform="translate(74 58) rotate(28)">
     <rect x="-3" y="-4" width="6" height="26" rx="2" fill="#5c3a1e"/>
+    <ellipse cx="0" cy="-14" rx="12" ry="9" fill="#ffb020" opacity=".3"/>
     <rect x="-9" y="-16" width="18" height="14" rx="2" fill="#8a8a8a"/>
-    <rect x="-9" y="-16" width="18" height="5" fill="#b5b5b5"/>
+    <rect x="-9" y="-16" width="18" height="5" fill="#b5b5b5" style="filter:drop-shadow(0 0 3px #ffb020)"/>
   </g>
 </svg>`;
 
@@ -2351,6 +2436,14 @@ function renderBattle(fresh){
     $("enemy-sprite").innerHTML = CHAMPION_PORTRAITS[b.clanKey] || "";
     $("enemy-sprite").dataset.clan = b.clanKey;
   }
+  $("enemy-sprite").style.setProperty("--glow-color", c.color);
+  $("hero-sprite").style.setProperty("--glow-color", "#ff9a40");
+  if(fresh){
+    $("hero-sprite").classList.remove("collapse");
+    $("enemy-sprite").classList.remove("collapse");
+    $("hero-sprite").classList.add("idle");
+    $("enemy-sprite").classList.add("idle");
+  }
 
   $("hero-hp-fill").style.width = clamp(h.hp/h.hpMax*100,0,100)+"%";
   $("hero-hp-num").textContent = `${h.hp}/${h.hpMax}`;
@@ -2386,25 +2479,71 @@ function heroSpecial(){
 
 function log(msg){ S.battle.log.push(msg); renderBattle(); }
 
-function popDamage(targetSelector, text, heal){
+function popDamage(targetSelector, text, heal, crit){
   const el = document.querySelector(targetSelector);
   if(!el) return;
   const pop = document.createElement("div");
-  pop.className = "dmg-pop"+(heal?" heal":"");
+  pop.className = "dmg-pop"+(heal?" heal":"")+(crit?" crit":"");
   pop.textContent = text;
   pop.style.left = (40+Math.random()*20)+"px";
   pop.style.top = "0px";
   el.style.position = "relative";
   el.appendChild(pop);
-  setTimeout(()=>pop.remove(), 900);
+  setTimeout(()=>pop.remove(), crit?1150:900);
 }
 function shakeFlash(selector, type){
   const el = document.querySelector(selector);
   if(!el) return;
-  el.classList.remove("shake","flash","atk-right","atk-left");
+  el.classList.remove("shake","flash","atk-right","atk-left","charge");
   void el.offsetWidth;
   el.classList.add(type);
   setTimeout(()=>el.classList.remove(type), 500);
+}
+
+/* slash + spark burst, for a real hit (damage dealt) */
+function spawnImpactFX(targetSelector, color){
+  const target = document.querySelector(targetSelector);
+  const stage = target && target.closest(".stage-fighter");
+  if(!stage) return;
+  const slash = document.createElement("div");
+  slash.className = "impact-slash show";
+  slash.innerHTML = `<svg viewBox="0 0 100 100">
+    <path d="M12 72 Q50 8 88 28" stroke="${color}" stroke-width="11" fill="none" stroke-linecap="round" opacity=".88"/>
+    <path d="M18 56 Q50 22 84 14" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" opacity=".75"/>
+  </svg>`;
+  stage.appendChild(slash);
+  setTimeout(()=>slash.remove(), 480);
+  for(let i=0;i<7;i++){
+    const sp = document.createElement("div");
+    sp.className = "spark fly";
+    const ang = Math.random()*Math.PI*2, dist = 20+Math.random()*28;
+    sp.style.setProperty("--sx", (Math.cos(ang)*dist)+"px");
+    sp.style.setProperty("--sy", (Math.sin(ang)*dist)+"px");
+    sp.style.color = color;
+    sp.style.background = color;
+    stage.appendChild(sp);
+    setTimeout(()=>sp.remove(), 550);
+  }
+}
+/* soft ring + rising motes, for heals/buffs/status (no damage) */
+function spawnAuraFX(targetSelector, color){
+  const target = document.querySelector(targetSelector);
+  const stage = target && target.closest(".stage-fighter");
+  if(!stage) return;
+  const ring = document.createElement("div");
+  ring.className = "aura-ring show";
+  ring.style.borderColor = color;
+  stage.appendChild(ring);
+  setTimeout(()=>ring.remove(), 650);
+  for(let i=0;i<5;i++){
+    const m = document.createElement("div");
+    m.className = "mote rise";
+    m.style.background = color;
+    m.style.left = (42+Math.random()*16)+"%";
+    m.style.animationDelay = (Math.random()*0.15)+"s";
+    stage.appendChild(m);
+    setTimeout(()=>m.remove(), 1050);
+  }
 }
 
 /* ============== BATTLE ACTIONS ============== */
@@ -2439,14 +2578,20 @@ function enemyEffectiveDef(){
 }
 
 function playerAttack(){
-  const b = S.battle;
-  const dmg = Math.max(4, heroEffectiveAtk() - enemyEffectiveDef() + Math.round(Math.random()*6));
+  const b = S.battle, c = CLANS[b.clanKey];
+  const crit = Math.random() < 0.15;
+  let dmg = Math.max(4, heroEffectiveAtk() - enemyEffectiveDef() + Math.round(Math.random()*6));
+  if(crit) dmg = Math.round(dmg*1.6);
   b.enemy.hp = clamp(b.enemy.hp - dmg, 0, b.enemy.hpMax);
-  shakeFlash("#enemy-icon","shake");
+  shakeFlash("#enemy-icon", crit?"flash":"shake");
   shakeFlash("#hero-sprite","atk-right");
-  setTimeout(()=>shakeFlash("#enemy-sprite","shake"), 160);
-  popDamage(".combatant.enemy", "-"+dmg);
-  log(`Atacas con tu martillo. Infliges <b>${dmg}</b> de daño.`);
+  setTimeout(()=>{
+    shakeFlash("#enemy-sprite","shake");
+    spawnImpactFX("#enemy-sprite", crit ? "#ffb020" : "#e9e9e9");
+    if(crit) shakeFlash("#battle-arena","arena-shake");
+  }, 160);
+  popDamage(".combatant.enemy", "-"+dmg, false, crit);
+  log(crit ? `¡Golpe crítico! Infliges <b>${dmg}</b> de daño.` : `Atacas con tu martillo. Infliges <b>${dmg}</b> de daño.`);
   afterPlayerAction();
 }
 
@@ -2455,10 +2600,15 @@ function playerSpecial(){
   if(S.hero.en < sp.cost) return;
   S.hero.en -= sp.cost;
   shakeFlash("#hero-icon","flash");
-  shakeFlash("#hero-sprite","atk-right");
+  shakeFlash("#hero-sprite","charge");
+  setTimeout(()=>shakeFlash("#hero-sprite","atk-right"), 220);
   const dmg = Math.max(8, Math.round((heroEffectiveAtk()*1.9) - enemyEffectiveDef()*0.6));
   b.enemy.hp = clamp(b.enemy.hp - dmg, 0, b.enemy.hpMax);
-  setTimeout(()=>shakeFlash("#enemy-sprite","shake"), 160);
+  setTimeout(()=>{
+    shakeFlash("#enemy-sprite","shake");
+    spawnImpactFX("#enemy-sprite", "#ff9a40");
+    shakeFlash("#battle-arena","arena-shake");
+  }, 380);
   popDamage(".combatant.enemy", "-"+dmg);
   log(`¡<b>Compilación Perfecta</b>! El golpe pasa sin errores. Infliges <b>${dmg}</b> de daño.`);
   afterPlayerAction();
@@ -2470,12 +2620,14 @@ function playerItem(kind){
     h.potionsHp--; const heal = 35;
     h.hp = clamp(h.hp+heal, 0, h.hpMax);
     popDamage(".combatant.hero", "+"+heal, true);
+    spawnAuraFX("#hero-sprite", "#3ddc73");
     log(`Bebes una poción de HP. Recuperas <b>${heal}</b> HP.`);
     closeItemPopover(); afterPlayerAction();
   } else if(kind==="en" && h.potionsEn>0){
     h.potionsEn--; const heal = 30;
     h.en = clamp(h.en+heal, 0, h.enMax);
     popDamage(".combatant.hero", "+"+heal, true);
+    spawnAuraFX("#hero-sprite", "#4ad8e8");
     log(`Bebes una poción de Energía. Recuperas <b>${heal}</b> EN.`);
     closeItemPopover(); afterPlayerAction();
   }
@@ -2526,7 +2678,10 @@ function enemyTurn(){
     S.hero.hp = clamp(S.hero.hp-dmg,0,S.hero.hpMax);
     shakeFlash("#hero-icon","shake");
     shakeFlash("#enemy-sprite","atk-left");
-    setTimeout(()=>shakeFlash("#hero-sprite","shake"), 160);
+    setTimeout(()=>{
+      shakeFlash("#hero-sprite","shake");
+      spawnImpactFX("#hero-sprite", c.color);
+    }, 160);
     popDamage(".combatant.hero","-"+dmg);
     log(`${c.champ} ataca. Recibes <b>${dmg}</b> de daño.`);
   }
@@ -2536,17 +2691,22 @@ function enemyTurn(){
 function castEnemySpecial(c){
   const b = S.battle, sp = c.special;
   shakeFlash("#enemy-icon","flash");
-  shakeFlash("#enemy-sprite","flash");
+  shakeFlash("#enemy-sprite","charge");
   switch(sp.kind){
     case "debuff_def":
       S.hero.statuses = S.hero.statuses.filter(s=>s.kind!=="defDown");
       S.hero.statuses.push({kind:"defDown",turns:2});
+      setTimeout(()=>spawnAuraFX("#hero-sprite", "#8a4fff"), 200);
       log(`${c.champ} usa <b>${sp.name}</b>. Tu defensa cae por 2 turnos.`);
       break;
     case "stun_dmg": {
       const dmg = Math.max(5, Math.round(enemyEffectiveAtk()*1.3) - heroEffectiveDef());
       S.hero.hp = clamp(S.hero.hp-dmg,0,S.hero.hpMax);
-      setTimeout(()=>shakeFlash("#hero-sprite","shake"), 160);
+      setTimeout(()=>{
+        shakeFlash("#hero-sprite","shake");
+        spawnImpactFX("#hero-sprite", c.color);
+        shakeFlash("#battle-arena","arena-shake");
+      }, 220);
       popDamage(".combatant.hero","-"+dmg);
       let msg = `${c.champ} usa <b>${sp.name}</b>. Infliges perdón, infliges <b>${dmg}</b> de daño.`;
       if(Math.random()<0.4){
@@ -2561,17 +2721,20 @@ function castEnemySpecial(c){
       const heal = Math.round(b.enemy.hpMax*0.18);
       b.enemy.hp = clamp(b.enemy.hp+heal,0,b.enemy.hpMax);
       popDamage(".combatant.enemy","+"+heal,true);
+      setTimeout(()=>spawnAuraFX("#enemy-sprite", "#3ddc73"), 200);
       log(`${c.champ} usa <b>${sp.name}</b>. Recupera <b>${heal}</b> HP.`);
       break;
     }
     case "poison":
       S.hero.statuses = S.hero.statuses.filter(s=>s.kind!=="poison");
       S.hero.statuses.push({kind:"poison",turns:3});
+      setTimeout(()=>spawnAuraFX("#hero-sprite", "#6fae3a"), 200);
       log(`${c.champ} usa <b>${sp.name}</b>. Quedas envenenado por 3 turnos.`);
       break;
     case "buff_def":
       b.enemy.statuses = b.enemy.statuses.filter(s=>s.kind!=="defUp");
       b.enemy.statuses.push({kind:"defUp",turns:2});
+      setTimeout(()=>spawnAuraFX("#enemy-sprite", c.color), 200);
       log(`${c.champ} usa <b>${sp.name}</b>. Su defensa sube mucho por 2 turnos.`);
       break;
     case "heal_buff_atk": {
@@ -2580,6 +2743,7 @@ function castEnemySpecial(c){
       b.enemy.statuses = b.enemy.statuses.filter(s=>s.kind!=="atkUp");
       b.enemy.statuses.push({kind:"atkUp",turns:2});
       popDamage(".combatant.enemy","+"+heal,true);
+      setTimeout(()=>spawnAuraFX("#enemy-sprite", "#ff9a40"), 200);
       log(`${c.champ} usa <b>${sp.name}</b>. Recupera <b>${heal}</b> HP y su ataque sube.`);
       break;
     }
@@ -2621,6 +2785,8 @@ function winBattle(){
   S.hero.atk += 2;
   renderBattle();
   renderHUD();
+  $("enemy-sprite").classList.remove("idle");
+  $("enemy-sprite").classList.add("collapse");
   setTimeout(()=>{
     if(realmsConqueredCount() === CLAN_ORDER.length){
       showVictory();
@@ -2636,6 +2802,8 @@ function loseBattle(){
   S.battle.over = true; S.battle.locked = true;
   log("Tu HP llega a cero. El campeón te derrota.");
   renderBattle();
+  $("hero-sprite").classList.remove("idle");
+  $("hero-sprite").classList.add("collapse");
   setTimeout(()=>{
     $("defeat-summary").innerHTML = `
       <div><span>Nivel alcanzado</span><b>${S.hero.level}</b></div>
