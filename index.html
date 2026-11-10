@@ -2249,7 +2249,7 @@ function buildWorld3D(){
   // player: geometric placeholder shown immediately, swapped for the real
   // rigged model (free public asset) once it finishes downloading
   const player = makePlaceholderPlayer();
-  player.scale.setScalar(0.476 * 0.9); // 10% smaller, per user request
+  player.scale.setScalar(0.476 * 0.9 * 0.9); // 10% smaller, then another 10% smaller, per user requests
   const spawn = spawnPoint3D();
   player.position.set(spawn.x,0,spawn.z);
   scene.add(player);
@@ -2378,7 +2378,7 @@ function startAnimating3D(){
 }
 
 function updateWorld3D(dt){
-  const SPEED = 26 * 0.7; // 30% slower map movement, per user request
+  const SPEED = 26 * 0.7 * 0.8; // 30% slower, then another 20% slower, per user requests
   const left = keysDown["arrowleft"]||keysDown["a"]||touchDir.left;
   const right = keysDown["arrowright"]||keysDown["d"]||touchDir.right;
   const up = keysDown["arrowup"]||keysDown["w"]||touchDir.up;
