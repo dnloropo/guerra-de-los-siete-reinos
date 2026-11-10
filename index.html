@@ -2543,12 +2543,12 @@ function realmsConqueredCount(){
 /* ============== BATTLE SETUP ============== */
 function startBattle(key){
   const c = CLANS[key];
-  const scale = (1.18 + (realmsConqueredCount() * 0.13)) * 1.10 * 1.20; // scales with progress, not hero level directly; +10% then another +20% on top, per user requests
+  const scale = (1.18 + (realmsConqueredCount() * 0.13)) * 1.10 * 1.20 * 0.85; // scales with progress, not hero level directly; +10%, +20%, then -15%, per user requests
   S.battle = {
     clanKey:key,
     enemy:{
       hpMax: Math.round(c.hp * scale), hp: Math.round(c.hp * scale),
-      atk: Math.round(c.atk * scale), def: Math.round(c.def * 1.2 * 1.10 * 1.20),
+      atk: Math.round(c.atk * scale), def: Math.round(c.def * 1.2 * 1.10 * 1.20 * 0.85),
       statuses:[]
     },
     log:[key==="cueva"
@@ -2934,6 +2934,7 @@ function winBattle(){
   S.hero.hpMax += 14; S.hero.hp = S.hero.hpMax;
   S.hero.enMax += 6; S.hero.en = S.hero.enMax;
   S.hero.atk += 2;
+  S.hero.potionsHp = 2; S.hero.potionsEn = 2; // restock potions after every boss kill, per user request
   renderBattle();
   renderHUD();
   $("enemy-sprite").classList.remove("idle");
