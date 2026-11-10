@@ -6,7 +6,9 @@ Construido con [Three.js](https://threejs.org/) en un único archivo HTML autoco
 
 ## Jugar
 
-Simplemente abre `index.html` en un navegador moderno, o visita el despliegue en Vercel.
+🎮 **Jugar en vivo:** https://guerra-de-los-siete-reinos.vercel.app
+
+O simplemente abre `index.html` en un navegador moderno.
 
 ## Controles
 
