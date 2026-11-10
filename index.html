@@ -2449,22 +2449,33 @@ function buildWorld3D(){
   const pkUx = (caveX-turing3.x)/caveOutDist, pkUz = (caveZ-turing3.z)/caveOutDist;
   const pkPerpX = -pkUz, pkPerpZ = pkUx; // perpendicular to the course, for a gentle zigzag
   const pkStartX = caveX + pkUx*16, pkStartZ = caveZ + pkUz*16;
-  // a longer, winding climb: more steps, with a mild side-to-side sway so it
-  // doesn't read as one dead-straight line of platforms
-  const PARKOUR_STEPS = 11, PARKOUR_GAP = 4, PARKOUR_RISE = 1.25, PARKOUR_SIZE = 3.1, PARKOUR_SWAY = 1.7;
+  // a longer, winding, tighter climb: narrower platforms, bigger gaps, a
+  // steeper rise and a stronger sway so timing/aim actually matter; a few
+  // steps also slide back and forth (movingAmp/movingSpeed/movingPhase) for
+  // an extra layer of difficulty
+  const PARKOUR_STEPS = 11, PARKOUR_GAP = 4.6, PARKOUR_RISE = 1.5, PARKOUR_SIZE = 2.5, PARKOUR_SWAY = 2.2;
   const parkourPlatforms = [];
   for(let i=0;i<PARKOUR_STEPS;i++){
     const forward = PARKOUR_GAP*i;
     const sway = i===0 ? 0 : Math.sin(i*0.85)*PARKOUR_SWAY;
-    const px = pkStartX + pkUx*forward + pkPerpX*sway;
-    const pz = pkStartZ + pkUz*forward + pkPerpZ*sway;
+    const baseX = pkStartX + pkUx*forward + pkPerpX*sway;
+    const baseZ = pkStartZ + pkUz*forward + pkPerpZ*sway;
     const py = 1.2 + PARKOUR_RISE*i;
-    const platGroup = makeParkourPlatform(px, py, pz, PARKOUR_SIZE);
+    const platGroup = makeParkourPlatform(baseX, py, baseZ, PARKOUR_SIZE);
     scene.add(platGroup);
+    // every 3rd step from the 4th platform onward slides side to side along
+    // the course's perpendicular axis, so the player has to time the jump
+    // to where the platform WILL be, not where it is right now
+    const moving = i>=4 && i%3===0;
     // hx/hz: horizontal half-extents for the top-landing check; slabBottom/
     // slabTop: the solid body's vertical extent, used to block the player
-    // from simply walking through the platform's underside/sides
-    parkourPlatforms.push({x:px, y:py, z:pz, hx:PARKOUR_SIZE/2, hz:PARKOUR_SIZE/2, slabBottom:py-0.6, slabTop:py});
+    // from simply walking through the platform's underside/sides; mesh: kept
+    // so a moving platform's visual stays in sync with its collision box
+    parkourPlatforms.push({
+      x:baseX, y:py, z:baseZ, hx:PARKOUR_SIZE/2, hz:PARKOUR_SIZE/2, slabBottom:py-0.6, slabTop:py,
+      mesh:platGroup, moving, baseX, baseZ, perpX:pkPerpX, perpZ:pkPerpZ,
+      moveAmp: moving ? 2.1 : 0, moveSpeed: moving ? 0.9 + i*0.07 : 0, movePhase: i*1.3
+    });
   }
   const lastPlat = parkourPlatforms[parkourPlatforms.length-1];
   const chest = makeChest();
@@ -2609,6 +2620,27 @@ function startAnimating3D(){
 }
 
 function updateWorld3D(dt){
+  // moving parkour platforms: slide back and forth along the course's
+  // perpendicular axis. If the player is currently standing on one, carry
+  // them along with it (add the platform's own delta to the player's
+  // position) so riding it doesn't quietly slide them off its edge — the
+  // player still has to time jumps to where a moving platform WILL be
+  if(W3D.parkourPlatforms){
+    const tMove = performance.now()/1000;
+    for(const p of W3D.parkourPlatforms){
+      if(!p.moving) continue;
+      const offset = Math.sin(tMove*p.moveSpeed + p.movePhase)*p.moveAmp;
+      const newPx = p.baseX + p.perpX*offset, newPz = p.baseZ + p.perpZ*offset;
+      const dx = newPx - p.x, dz = newPz - p.z;
+      if(W3D.grounded && Math.abs(W3D.player.position.y-p.slabTop)<0.15 &&
+         Math.abs(W3D.player.position.x-p.x)<p.hx && Math.abs(W3D.player.position.z-p.z)<p.hz){
+        W3D.player.position.x += dx;
+        W3D.player.position.z += dz;
+      }
+      p.x = newPx; p.z = newPz;
+      if(p.mesh){ p.mesh.position.x = newPx; p.mesh.position.z = newPz; }
+    }
+  }
   const SPEED = 26 * 0.7 * 0.8; // 30% slower, then another 20% slower, per user requests
   const left = keysDown["arrowleft"]||keysDown["a"]||touchDir.left;
   const right = keysDown["arrowright"]||keysDown["d"]||touchDir.right;
@@ -2669,6 +2701,21 @@ function updateWorld3D(dt){
   const prevY = W3D.player.position.y;
   let nextY = prevY + W3D.velY*dt;
   let supportY = 0;
+  // a ceiling check: if the player is jumping up (or carried up by a moving
+  // platform) from below a platform's underside, stop them at the underside
+  // instead of letting a big enough vertical step pop them straight through
+  // its solid body and out the top — same footprint test as the top-landing
+  // check below, just triggered from the other side
+  let ceilingY = Infinity;
+  if(W3D.parkourPlatforms){
+    for(const p of W3D.parkourPlatforms){
+      if(Math.abs(W3D.player.position.x-p.x)<p.hx && Math.abs(W3D.player.position.z-p.z)<p.hz &&
+         prevY < p.slabBottom-0.05 && p.slabBottom < ceilingY){
+        ceilingY = p.slabBottom;
+      }
+    }
+  }
+  if(nextY > ceilingY){ nextY = ceilingY; if(W3D.velY > 0) W3D.velY = 0; }
   if(W3D.parkourPlatforms){
     for(const p of W3D.parkourPlatforms){
       if(Math.abs(W3D.player.position.x-p.x)<p.hx && Math.abs(W3D.player.position.z-p.z)<p.hz && p.y<=prevY+0.1 && p.y>supportY){
