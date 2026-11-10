@@ -1044,6 +1044,9 @@ const ZONE_RADIUS_3D = ZONE_RADIUS*SCALE3D, TRIGGER_RADIUS_3D = TRIGGER_RADIUS*S
 // the cave healer's encounter radius is its own, smaller than a castle's —
 // the cave itself is a much smaller landmark than a castle's walled territory
 const CAVE_ZONE_RADIUS_3D = 14, CAVE_TRIGGER_RADIUS_3D = 10;
+// Troll Luis never fights — he just has a line of dialogue when you walk up,
+// so he only needs a "zone" radius for the map-tip, no trigger radius
+const LUIS_ZONE_RADIUS_3D = 10;
 function toWorld3D(pos){ return {x:pos.x*SCALE3D, z:pos.y*SCALE3D}; }
 
 let W3D = null;             // {renderer,scene,camera,player,castles,clock,raf,resizeObs}
@@ -1595,6 +1598,110 @@ function makePlaceholderPlayer(){
   const hammerHead = new THREE.Mesh(new THREE.BoxGeometry(0.42,0.26,0.26), metal);
   hammerHead.position.set(0.84,1.6,0.08); hammerHead.rotation.z=-0.45;
   group.add(hammerHead);
+
+  group.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; } });
+  return group;
+}
+
+/* Troll Luis: a lone, non-hostile landmark NPC reusing the mossy-green/tusk
+   palette the cave's old troll champion used before it was reskinned into
+   "Curandera Alejandra" — same skin tones and club, just built as a full
+   overworld figure instead of a flat portrait. He doesn't fight; standing
+   near him just shows a line of dialogue (see nearLuis/TROLL_LUIS_LINE
+   below), so no battle trigger or collider is attached to him. */
+function makeTrollLuis(){
+  const group = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({color:0x7c8a5c, roughness:0.9, flatShading:true});
+  const skinDark = new THREE.MeshStandardMaterial({color:0x3a4428, roughness:0.95, flatShading:true});
+  const tusk = new THREE.MeshStandardMaterial({color:0xe8e2cf, roughness:0.5});
+  const eye = new THREE.MeshBasicMaterial({color:0x9fdb5a});
+  const wood = new THREE.MeshStandardMaterial({color:0x4a3b26, roughness:0.9});
+  const woodHead = new THREE.MeshStandardMaterial({color:0x5c4a30, roughness:0.9});
+  const knot = new THREE.MeshStandardMaterial({color:0x3a2e1c, roughness:0.9});
+
+  // big hunched body, bigger and squatter than the hero's — trolls are
+  // broad, not tall
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.72,1.05,4,10), skin);
+  body.position.y = 1.15; body.scale.set(1,0.92,0.92);
+  group.add(body);
+
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.58,12,10), skinDark);
+  belly.position.set(0,0.95,0.32); belly.scale.set(1,0.85,0.75);
+  group.add(belly);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.46,14,12), skin);
+  head.position.y = 2.05; head.scale.set(1,0.95,1.05);
+  group.add(head);
+  const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.3,12,10), skinDark);
+  jaw.position.set(0,1.86,0.2); jaw.scale.set(1,0.6,0.85);
+  group.add(jaw);
+
+  // pointed ears
+  [-1,1].forEach(side=>{
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.4,6), skin);
+    ear.position.set(side*0.46,2.12,-0.02);
+    ear.rotation.z = side*0.5; ear.rotation.x = 0.3;
+    group.add(ear);
+  });
+
+  // glowing eyes
+  [-1,1].forEach(side=>{
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.07,8,8), eye);
+    e.position.set(side*0.17,2.1,0.38);
+    group.add(e);
+  });
+
+  // lower tusks jutting up past the jaw
+  [-1,1].forEach(side=>{
+    const t = new THREE.Mesh(new THREE.ConeGeometry(0.07,0.28,6), tusk);
+    t.position.set(side*0.16,1.78,0.36);
+    t.rotation.x = Math.PI*0.95; t.rotation.z = side*0.15;
+    group.add(t);
+  });
+
+  // thick arms, one raised slightly as if mid-complaint
+  const armMat = skin;
+  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.22,0.7,4,8), armMat);
+  armL.position.set(-0.82,1.1,0); armL.rotation.z = 0.35;
+  group.add(armL);
+  const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.22,0.7,4,8), armMat);
+  armR.position.set(0.86,1.35,0.1); armR.rotation.z = -0.9;
+  group.add(armR);
+  const fistR = new THREE.Mesh(new THREE.SphereGeometry(0.22,10,8), skinDark);
+  fistR.position.set(1.18,1.78,0.1);
+  group.add(fistR);
+  const fistL = new THREE.Mesh(new THREE.SphereGeometry(0.2,10,8), skinDark);
+  fistL.position.set(-1.0,0.78,0);
+  group.add(fistL);
+
+  // stubby legs
+  [-1,1].forEach(side=>{
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.26,0.4,4,8), skinDark);
+    leg.position.set(side*0.34,0.35,0);
+    group.add(leg);
+  });
+
+  // a club resting on the ground beside him (he's not fighting, just leaning on it)
+  const clubGroup = new THREE.Group();
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1.1,8), wood);
+  handle.position.y = 0.55;
+  clubGroup.add(handle);
+  const clubHead = new THREE.Mesh(new THREE.SphereGeometry(0.34,10,8), woodHead);
+  clubHead.position.y = 1.15; clubHead.scale.set(1,1.25,1);
+  clubGroup.add(clubHead);
+  [[-0.12,1.05,0.1],[0.1,1.3,-0.08]].forEach(p=>{
+    const k = new THREE.Mesh(new THREE.SphereGeometry(0.07,6,6), knot);
+    k.position.set(p[0],p[1],p[2]);
+    clubGroup.add(k);
+  });
+  clubGroup.position.set(-1.05,0,0.25);
+  clubGroup.rotation.z = -0.18;
+  group.add(clubGroup);
+
+  // a torn banner-like scrap at his feet, a visual nod to being an outcast
+  const scrap = new THREE.Mesh(new THREE.TorusGeometry(0.3,0.05,6,16,Math.PI*1.3), knot);
+  scrap.position.set(0.55,0.06,-0.4); scrap.rotation.x = Math.PI/2;
+  group.add(scrap);
 
   group.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; } });
   return group;
@@ -2571,6 +2678,19 @@ function buildWorld3D(){
   chestLabel.position.set(lastPlat.x, lastPlat.y+2.2, lastPlat.z);
   scene.add(chestLabel);
 
+  // Troll Luis: a lone non-combat NPC in the open gap between the
+  // home→Ubuntu and home→Turing roads, northwest of the home castle — far
+  // from every castle's trigger radius and from the parkour/cave area, but
+  // still a short walk from spawn so he's easy to stumble on
+  const trollLuisX = home3.x - 42.33, trollLuisZ = home3.z - 15.4;
+  const trollLuis = makeTrollLuis();
+  trollLuis.position.set(trollLuisX, 0, trollLuisZ);
+  trollLuis.rotation.y = Math.atan2(home3.x-trollLuisX, home3.z-trollLuisZ); // facing back toward home/spawn
+  scene.add(trollLuis);
+  const trollLuisLabel = makeLabelSprite("👹 TROLL LUIS", "#ffffff");
+  trollLuisLabel.position.set(trollLuisX, 3.1, trollLuisZ);
+  scene.add(trollLuisLabel);
+
   // player: geometric placeholder shown immediately, swapped for the real
   // rigged model (free public asset) once it finishes downloading
   const player = makePlaceholderPlayer();
@@ -2586,7 +2706,7 @@ function buildWorld3D(){
     renderer, scene, camera, player, castles, home3, composer, bloomPass,
     clock:new THREE.Clock(), raf:null, facing:0, triggerCooldown:0,
     resizeObs:null, active:false, waterTextures,
-    caveP3:{x:caveX, z:caveZ},
+    caveP3:{x:caveX, z:caveZ}, trollLuisP3:{x:trollLuisX, z:trollLuisZ},
     camOrbit:0, // player-drag-controlled horizontal angle around the player, third-person orbit
     velY:0, grounded:true, ridingPlatform:null, parkourPlatforms, chest, chestP3:{x:lastPlat.x, y:lastPlat.y, z:lastPlat.z},
     castleColliders
@@ -2899,6 +3019,13 @@ function updateWorld3D(dt){
     : Infinity;
   const nearCave = caveDist < CAVE_ZONE_RADIUS_3D;
 
+  // Troll Luis — a lone, non-hostile landmark; same "just show a map-tip
+  // when close" pattern as the cave, but with no battle trigger at all
+  const luisDist = W3D.trollLuisP3
+    ? Math.hypot(W3D.player.position.x-W3D.trollLuisP3.x, W3D.player.position.z-W3D.trollLuisP3.z)
+    : Infinity;
+  const nearLuis = luisDist < LUIS_ZONE_RADIUS_3D;
+
   // the parkour-course treasure chest — proximity also requires being
   // roughly at the chest's height, so standing on the ground far below the
   // final platform doesn't count as "near" it
@@ -2918,6 +3045,8 @@ function updateWorld3D(dt){
     updateMapTip(won
       ? `<b>${c.name} — despejada.</b> La ${c.champ} ya no ronda la cueva.`
       : `<b>${c.name}</b> · Enemigo: <b>${c.champ}</b> — ${c.desc}`);
+  } else if(nearLuis){
+    updateMapTip("👹 <b>Troll Luis</b> — \"Fui desterrado de los seis reinos. Ya ninguno me quiere cerca... así que aquí me quedo, solo con mi garrote y mis recuerdos.\"");
   } else if(nearest && nearestDist < ZONE_RADIUS_3D+5){
     const c = CLANS[nearest], won = S.conquered.includes(nearest);
     updateMapTip(won
