@@ -3395,36 +3395,124 @@ function pauseBattleArena3D(){
 const HERO_SLOT_3D = {x:-3.4, y:0, z:2};
 const ENEMY_SLOT_3D = {x:3.4, y:0, z:2};
 
+// a proper, fully-proportioned battle hero (torso/hips/arms/legs/boots,
+// shoulder pauldrons, a raised hammer) — nicer than the overworld's plain
+// placeholder capsule-figure, and kept separate so improving it here never
+// touches how the player looks walking around the map
+function makeBattleHeroModel(){
+  const group = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({color:0xe3b48a, roughness:0.8});
+  const cloth = new THREE.MeshStandardMaterial({color:0xc45a2c, roughness:0.6});
+  const clothDark = new THREE.MeshStandardMaterial({color:0x8a3d1c, roughness:0.75});
+  const leather = new THREE.MeshStandardMaterial({color:0x5a3a24, roughness:0.85});
+  const metal = new THREE.MeshStandardMaterial({color:0xb8b2a4, metalness:0.6, roughness:0.3});
+  const dark = new THREE.MeshStandardMaterial({color:0x2b2621, roughness:0.85});
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.4,0.6,4,10), cloth);
+  torso.position.y = 1.32; group.add(torso);
+  const hips = new THREE.Mesh(new THREE.CapsuleGeometry(0.36,0.25,4,8), clothDark);
+  hips.position.y = 0.85; group.add(hips);
+  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.37,0.05,8,16), leather);
+  belt.position.y = 0.95; belt.rotation.x = Math.PI/2; group.add(belt);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3,14,12), skin);
+  head.position.y = 2.0; group.add(head);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.32,14,10,0,Math.PI*2,0,Math.PI/2.1), dark);
+  cap.position.y = 2.05; group.add(cap);
+  [-1,1].forEach(side=>{
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035,8,8), dark);
+    eye.position.set(side*0.11,2.0,0.27); group.add(eye);
+  });
+
+  [-1,1].forEach(side=>{
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.17,10,8), metal);
+    p.position.set(side*0.47,1.66,0); group.add(p);
+  });
+
+  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.13,0.55,4,8), cloth);
+  armL.position.set(-0.52,1.2,0); armL.rotation.z = 0.15; group.add(armL);
+  const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.13,0.55,4,8), cloth);
+  armR.position.set(0.52,1.35,0.05); armR.rotation.z = -0.55; group.add(armR);
+  const handR = new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8), skin);
+  handR.position.set(0.78,1.62,0.08); group.add(handR);
+
+  // the hammer, raised in the right hand
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.9,8), leather);
+  handle.position.set(0.86,1.95,0.1); handle.rotation.z = -0.55; group.add(handle);
+  const hammerHead = new THREE.Mesh(new THREE.BoxGeometry(0.38,0.24,0.24), metal);
+  hammerHead.position.set(1.12,2.32,0.1); hammerHead.rotation.z = -0.55; group.add(hammerHead);
+
+  [-1,1].forEach(side=>{
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.15,0.55,4,8), clothDark);
+    leg.position.set(side*0.18,0.42,0); group.add(leg);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.18,0.32), dark);
+    boot.position.set(side*0.18,0.1,0.05); group.add(boot);
+  });
+
+  group.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
+  return group;
+}
+
 function makeBattleEnemyModel(key){
   // Troll Luis already has a full bespoke model built for the overworld —
   // just reuse it here instead of inventing a second one
   if(key==="luis") return makeTrollLuis();
   const c = CLANS[key];
   const group = new THREE.Group();
-  const cloth = new THREE.MeshStandardMaterial({color:c.color, roughness:0.75});
-  const dark = new THREE.MeshStandardMaterial({color:c.colorDark||c.color, roughness:0.85});
+  const cloth = new THREE.MeshStandardMaterial({color:c.color, roughness:0.65});
+  const dark = new THREE.MeshStandardMaterial({color:c.colorDark||c.color, roughness:0.8});
   const skin = new THREE.MeshStandardMaterial({color:0xcf9a6e, roughness:0.8});
-  const metal = new THREE.MeshStandardMaterial({color:0x9a9488, metalness:0.5, roughness:0.4});
+  const metal = new THREE.MeshStandardMaterial({color:0x9a9488, metalness:0.55, roughness:0.35});
+  const glowEye = new THREE.MeshBasicMaterial({color:c.color});
 
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.46,0.95,4,10), cloth);
-  body.position.y = 1.0;
-  group.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.36,14,12), skin);
-  head.position.y = 1.82;
-  group.add(head);
-  // a hooded cowl in the clan's dark tone — a generic silhouette that still
-  // reads as "a rival champion", distinct enough from the hero's bare head
-  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.42,0.5,12), dark);
-  hood.position.y = 2.08;
-  group.add(hood);
-  // an angular blade, instead of the hero's round hammer, so the two
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.42,0.62,4,10), cloth);
+  torso.position.y = 1.3; group.add(torso);
+  const hips = new THREE.Mesh(new THREE.CapsuleGeometry(0.38,0.22,4,8), dark);
+  hips.position.y = 0.85; group.add(hips);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3,14,12), skin);
+  head.position.y = 1.98; group.add(head);
+  // a hooded cowl in the clan's dark tone, with a pair of glowing eyes the
+  // color of the clan itself — a generic silhouette that still reads as
+  // "a rival champion", distinct enough from the hero's bare head
+  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.38,0.5,12), dark);
+  hood.position.y = 2.22; group.add(hood);
+  [-1,1].forEach(side=>{
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045,8,8), glowEye);
+    eye.position.set(side*0.11,1.98,0.26); group.add(eye);
+  });
+
+  // a short cape hanging from the shoulders
+  const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.55,0.95), dark);
+  cape.material.side = THREE.DoubleSide;
+  cape.position.set(0,1.3,-0.4); cape.rotation.x = 0.15;
+  group.add(cape);
+
+  [-1,1].forEach(side=>{
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.18,10,8), dark);
+    p.position.set(side*0.5,1.63,0); group.add(p);
+  });
+
+  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.14,0.55,4,8), cloth);
+  armL.position.set(-0.55,1.18,0); armL.rotation.z = 0.2; group.add(armL);
+  const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.14,0.55,4,8), cloth);
+  armR.position.set(0.55,1.3,0.05); armR.rotation.z = -0.5; group.add(armR);
+
+  // a sword with a crossguard, instead of a plain cone blade, so the two
   // silhouettes don't read as mirrors of each other
-  const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.6,6), dark);
-  hilt.position.set(0.56,1.3,0.1); hilt.rotation.z = -0.5;
-  group.add(hilt);
-  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.9,4), metal);
-  blade.position.set(0.85,1.85,0.1); blade.rotation.z = -0.5;
-  group.add(blade);
+  const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.3,8), dark);
+  hilt.position.set(0.86,1.55,0.1); hilt.rotation.z = -0.5; group.add(hilt);
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.05,0.05), metal);
+  guard.position.set(0.98,1.68,0.1); guard.rotation.z = -0.5; group.add(guard);
+  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.07,0.75,4), metal);
+  blade.position.set(1.12,2.02,0.1); blade.rotation.z = -0.5; group.add(blade);
+
+  [-1,1].forEach(side=>{
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.16,0.55,4,8), dark);
+    leg.position.set(side*0.2,0.42,0); group.add(leg);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.24,0.18,0.34), dark);
+    boot.position.set(side*0.2,0.1,0.05); group.add(boot);
+  });
 
   group.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
   return group;
@@ -3432,7 +3520,7 @@ function makeBattleEnemyModel(key){
 
 function ensureBattleFighters3D(){
   if(!BATTLE3D || BATTLE3D.heroModel) return;
-  const hero = makePlaceholderPlayer();
+  const hero = makeBattleHeroModel();
   hero.scale.setScalar(1.3);
   hero.position.set(HERO_SLOT_3D.x, HERO_SLOT_3D.y, HERO_SLOT_3D.z);
   hero.rotation.y = -Math.PI/2; // face the enemy slot (+x)
