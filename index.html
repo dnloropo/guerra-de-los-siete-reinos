@@ -2518,12 +2518,12 @@ function realmsConqueredCount(){
 /* ============== BATTLE SETUP ============== */
 function startBattle(key){
   const c = CLANS[key];
-  const scale = 1.18 + (realmsConqueredCount() * 0.13); // scales with progress, not hero level directly; bumped up — tougher enemies
+  const scale = (1.18 + (realmsConqueredCount() * 0.13)) * 1.10; // scales with progress, not hero level directly; bumped up — tougher enemies, +10% across the board
   S.battle = {
     clanKey:key,
     enemy:{
       hpMax: Math.round(c.hp * scale), hp: Math.round(c.hp * scale),
-      atk: Math.round(c.atk * scale), def: Math.round(c.def * 1.2),
+      atk: Math.round(c.atk * scale), def: Math.round(c.def * 1.2 * 1.10),
       statuses:[]
     },
     log:[key==="cueva"
