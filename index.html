@@ -1,12 +1,4 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Guerra de los Siete Reinos</title>
-</head>
-<body>
-<meta name="claude:viewport-fit-sides" content="cover">
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Guerra de los Siete Reinos</title></head><body><meta name="claude:viewport-fit-sides" content="cover">
 <title>Guerra de los Siete Reinos</title>
 <style>
 /* Layout concept: full-screen single-view app. A title/lore gate, then a hex-ish
@@ -2455,15 +2447,24 @@ function buildWorld3D(){
   // W3D.grounded handling in updateWorld3D for the simple support-height check
   const caveOutDist = Math.hypot(caveX-turing3.x, caveZ-turing3.z);
   const pkUx = (caveX-turing3.x)/caveOutDist, pkUz = (caveZ-turing3.z)/caveOutDist;
+  const pkPerpX = -pkUz, pkPerpZ = pkUx; // perpendicular to the course, for a gentle zigzag
   const pkStartX = caveX + pkUx*16, pkStartZ = caveZ + pkUz*16;
-  const PARKOUR_STEPS = 6, PARKOUR_GAP = 4, PARKOUR_RISE = 1.4, PARKOUR_SIZE = 3.1;
+  // a longer, winding climb: more steps, with a mild side-to-side sway so it
+  // doesn't read as one dead-straight line of platforms
+  const PARKOUR_STEPS = 11, PARKOUR_GAP = 4, PARKOUR_RISE = 1.25, PARKOUR_SIZE = 3.1, PARKOUR_SWAY = 1.7;
   const parkourPlatforms = [];
   for(let i=0;i<PARKOUR_STEPS;i++){
-    const px = pkStartX + pkUx*PARKOUR_GAP*i, pz = pkStartZ + pkUz*PARKOUR_GAP*i;
+    const forward = PARKOUR_GAP*i;
+    const sway = i===0 ? 0 : Math.sin(i*0.85)*PARKOUR_SWAY;
+    const px = pkStartX + pkUx*forward + pkPerpX*sway;
+    const pz = pkStartZ + pkUz*forward + pkPerpZ*sway;
     const py = 1.2 + PARKOUR_RISE*i;
     const platGroup = makeParkourPlatform(px, py, pz, PARKOUR_SIZE);
     scene.add(platGroup);
-    parkourPlatforms.push({x:px, y:py, z:pz, hx:PARKOUR_SIZE/2, hz:PARKOUR_SIZE/2});
+    // hx/hz: horizontal half-extents for the top-landing check; slabBottom/
+    // slabTop: the solid body's vertical extent, used to block the player
+    // from simply walking through the platform's underside/sides
+    parkourPlatforms.push({x:px, y:py, z:pz, hx:PARKOUR_SIZE/2, hz:PARKOUR_SIZE/2, slabBottom:py-0.6, slabTop:py});
   }
   const lastPlat = parkourPlatforms[parkourPlatforms.length-1];
   const chest = makeChest();
@@ -2632,8 +2633,19 @@ function updateWorld3D(dt){
     // looks mirrored/backwards relative to what's on screen
     vx = nx*Math.cos(W3D.camOrbit) + nz*Math.sin(W3D.camOrbit);
     vz = -nx*Math.sin(W3D.camOrbit) + nz*Math.cos(W3D.camOrbit);
-    W3D.player.position.x = clamp(W3D.player.position.x + vx*SPEED*dt, 1.5, WORLD_W3D-1.5);
-    W3D.player.position.z = clamp(W3D.player.position.z + vz*SPEED*dt, 1.5, WORLD_H3D-1.5);
+    // axis-separated collision against the solid body of each parkour
+    // platform: blocked only when the player's current height is below the
+    // platform's top (so walking/landing ON TOP, handled by the gravity
+    // support-check below, stays free) and above its underside — otherwise
+    // the player could just walk straight through a platform's side or belly
+    const py = W3D.player.position.y;
+    const blockedAt = (x,z)=> (W3D.parkourPlatforms||[]).some(p=>
+      Math.abs(x-p.x)<p.hx && Math.abs(z-p.z)<p.hz && py<p.slabTop-0.05 && py>p.slabBottom-1.6
+    );
+    const newX = clamp(W3D.player.position.x + vx*SPEED*dt, 1.5, WORLD_W3D-1.5);
+    if(!blockedAt(newX, W3D.player.position.z)) W3D.player.position.x = newX;
+    const newZ = clamp(W3D.player.position.z + vz*SPEED*dt, 1.5, WORLD_H3D-1.5);
+    if(!blockedAt(W3D.player.position.x, newZ)) W3D.player.position.z = newZ;
 
     const targetFacing = Math.atan2(vx,vz);
     let diff = targetFacing - W3D.facing;
@@ -4097,6 +4109,4 @@ try{
 
 })();
 </script>
-
-</body>
-</html>
+</body></html>
